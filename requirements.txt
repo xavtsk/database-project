@@ -1,1 +1,2 @@
-# Dependencies will be added after the technology stack is finalised.
+# HTTP client for raw PokéAPI collection; the application stack is still undecided.
+requests>=2.32,<3
