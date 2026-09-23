@@ -1,0 +1,19 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": ["_id", "trainer_id", "difficulty", "rules_version", "revision", "status", "started_at", "turn_count", "initial", "player", "opponent", "turns"],
+    "properties": {
+      "_id": {"bsonType": "string"},
+      "trainer_id": {"bsonType": "int"},
+      "difficulty": {"enum": ["easy", "medium", "hard"]},
+      "status": {"enum": ["active", "win", "loss", "draw"]},
+      "revision": {"bsonType": "int", "minimum": 0},
+      "turn_count": {"bsonType": "int", "minimum": 0, "maximum": 200},
+      "started_at": {"bsonType": "date"},
+      "initial": {"bsonType": "object"},
+      "player": {"bsonType": "object"},
+      "opponent": {"bsonType": "object"},
+      "turns": {"bsonType": "array"}
+    }
+  }
+}

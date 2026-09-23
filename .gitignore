@@ -37,6 +37,7 @@ coverage.xml
 # Logs
 *.log
 logs/
+.local/
 
 # macOS
 .DS_Store

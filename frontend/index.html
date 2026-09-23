@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#e33535">
+  <title>INF2003 Group 13 · Pokémon Battle Analytics</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='group13-v2') }}">
+  <script defer src="{{ url_for('static', filename='app.js', v='group13-v2') }}"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#pokedex"><span class="ball" aria-hidden="true"></span><span>INF2003<small>GROUP 13</small></span></a>
+    <p class="eyebrow nav-label">YOUR ADVENTURE</p>
+    <nav aria-label="Main navigation">
+      <button data-nav="pokedex"><span>01</span> Pokédex</button>
+      <button data-nav="teams"><span>02</span> Collection & teams</button>
+      <button data-nav="analysis"><span>03</span> Team analysis</button>
+      <button data-nav="battle"><span>04</span> Battle arena</button>
+      <button data-nav="analytics"><span>05</span> Battle analytics</button>
+    </nav>
+    <div class="sidebar-bottom"><p>151 Pokémon.<br>One team. Your strategy.</p><small>INF2003 Group 13<br>Pokédex & Battle Analytics · Rules v2</small></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><span class="eyebrow">INF2003 GROUP 13 <span class="live-dot"></span></span><button id="profile-button" class="quiet" data-action="profiles">Choose trainer ↗</button></header>
+    <div id="notice" role="alert" hidden></div>
+    <main id="main" tabindex="-1"><p class="empty">Opening your Pokédex…</p></main>
+    <footer>INF2003 Group 13 · Explore. Build. Battle.<span>Pokémon names and sprites belong to their respective owners.</span></footer>
+  </div>
+  <dialog id="dialog" aria-labelledby="dialog-title"><button class="dialog-close quiet" data-action="close-dialog" aria-label="Close dialog">✕</button><div id="dialog-content"></div></dialog>
+</body>
+</html>

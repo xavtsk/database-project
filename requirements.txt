@@ -1,2 +1,5 @@
-# HTTP client for raw PokéAPI collection; the application stack is still undecided.
+# Raw-data collection and the approved local web prototype.
 requests>=2.32,<3
+Flask>=3.1,<4
+PyMySQL>=1.1,<2
+pymongo>=4.10,<5
