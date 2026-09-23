@@ -6,6 +6,8 @@ A five-person university database project combining a Pokémon collection and ba
 
 The playable prototype is on `feature/core-features`. Its database schema and simplified mechanics follow the [approved design](docs/database-design/playable-prototype-proposal.md). This is a local demonstration with selectable trainer profiles, not an authenticated public service.
 
+See the [application architecture](docs/diagrams/application-architecture.md) for the data flow and proposed EXP, levels and evolution extension. Progression is not implemented yet.
+
 ## Play locally
 
 On the development computer, the databases and ignored `.env` have been configured. Start the app from the repository root:
