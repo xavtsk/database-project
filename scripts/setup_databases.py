@@ -14,7 +14,8 @@ import requests
 from backend.config import ROOT, sql_options
 from backend.db import mongo_client, mongo_database, require_mysql
 from scripts.data_import.fetch_pokeapi import RawDownloader
-from scripts.data_import.prepare_game_data import prepare, OUTPUT
+from scripts.data_import.audit_game_data import stage, write_report, REPORT
+from scripts.data_import.import_historical import initialize as initialize_historical
 
 
 def setup(fetch_dark=False, sql_only=False):
@@ -22,8 +23,8 @@ def setup(fetch_dark=False, sql_only=False):
         with requests.Session() as session:
             if RawDownloader(session).fetch("type", "dark", "types") is None:
                 raise RuntimeError("Could not cache the required Dark type")
-    data = prepare()
-    OUTPUT.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    data, audit_report = stage()
+    print(f"[AUDIT] validated {audit_report['source_files']} source files; {REPORT}")
     name = os.getenv("SQL_DATABASE", "pokedex_battle")
     if not re.fullmatch(r"[A-Za-z0-9_]+", name):
         raise ValueError("Invalid SQL_DATABASE")
@@ -36,6 +37,10 @@ def setup(fetch_dark=False, sql_only=False):
             for statement in (ROOT / "database/relational/schema.sql").read_text().split(";"):
                 if statement.strip():
                     cursor.execute(statement)
+            for statement in (ROOT / "database/relational/views.sql").read_text(encoding="utf-8").split(";"):
+                if statement.strip():
+                    cursor.execute(statement)
+            initialize_historical(cursor)
             # Dependencies require types before Pokémon-type and move references.
             for table in ("pokemon", "types", "moves", "pokemon_types", "pokemon_moves", "type_effectiveness"):
                 rows = data[table]
@@ -46,6 +51,9 @@ def setup(fetch_dark=False, sql_only=False):
                 cursor.executemany(sql, [tuple(row[c] for c in columns) for row in rows])
                 print(f"[SQL] {table}: {len(rows)} rows")
         connection.commit()
+    audit_report["mysql_import"] = dict(status="committed", database=name, server=info["version"],
+                                        table_counts=audit_report["table_counts"])
+    write_report(audit_report)
     if sql_only:
         return
     with mongo_client() as client:

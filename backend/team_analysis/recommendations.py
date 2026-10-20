@@ -1,8 +1,13 @@
 """Explainable suggestions; no saved team is modified by this module."""
+import json
+
+from backend.config import ROOT
 from backend.catalog import catalog, effectiveness
 from backend.db import query
-from backend.teams.budget import team_budget, pokemon_cost
+from backend.teams.budget import team_budget, pokemon_cost, LIMIT
 from backend.teams.service import default_moves, get_team
+
+RECOMMENDATION_SQL = (ROOT / "database/relational/queries/team_recommendations.sql").read_text(encoding="utf-8")
 
 
 def team_scores(members):
@@ -17,7 +22,7 @@ def team_scores(members):
 
 
 def rank_candidates(members, candidates):
-    """Pure ranking over owned candidate instances and the current selections."""
+    """Reference scoring for offline/equivalence tests; production uses the SQL below."""
     before = team_scores(members)
     used = {m["owned_id"] for m in members}
     suggestions = []
@@ -57,7 +62,7 @@ def rank_candidates(members, candidates):
                                     replace_name=members[outgoing]["pokemon"]["name"] if outgoing is not None else None,
                                     suggested_moves=[m for m in pokemon["moves"] if m["id"] in proposed_member["moves"]],
                                     reason=reason))
-    suggestions.sort(key=lambda s: (-s["exposure_reduction"], -s["coverage_gain"], s["cost"], s["owned_id"], s["replace_owned_id"] or 0))
+    suggestions.sort(key=lambda s: (-round(s["exposure_reduction"], 9), -s["coverage_gain"], s["cost"], s["owned_id"], s["replace_owned_id"] or 0))
     unique = []
     species = set()
     for suggestion in suggestions:
@@ -74,11 +79,45 @@ def rank_candidates(members, candidates):
 
 def recommend(trainer_id, team_id):
     team = get_team(trainer_id, team_id)
-    # Ownership and exclusions are handled by SQL, before ranking catalogue-backed types/moves.
-    rows = query("""SELECT o.id AS owned_id,p.id AS pokemon_id FROM owned_pokemon o
-        JOIN pokemon p ON p.id=o.pokemon_id
-        WHERE o.trainer_id=%s AND NOT EXISTS
-        (SELECT 1 FROM team_members tm WHERE tm.team_id=%s AND tm.owned_id=o.id)
-        ORDER BY o.id""", (trainer_id, team_id))
-    candidates = [dict(row, pokemon=catalog()[0][row["pokemon_id"]]) for row in rows]
-    return rank_candidates(team["members"], candidates)
+    # MySQL evaluates every affordable addition/replacement and ranks distinct species.
+    # Python only formats the already-scored rows and hydrates suggested move names.
+    rows = query(RECOMMENDATION_SQL, (trainer_id, team_id, LIMIT))
+    first = rows[0]
+
+    def scores(row, prefix):
+        weaknesses = json.loads(row[prefix + "_weaknesses"])
+        coverage = json.loads(row[prefix + "_coverage_types"])
+        return dict(exposure=float(row[prefix + "_exposure"]) if row[prefix + "_exposure"] is not None else None,
+                    coverage=int(row[prefix + "_coverage"]),
+                    weaknesses={k: float(v) for k, v in weaknesses.items() if v is not None},
+                    covered_types=sorted(k for k, v in coverage.items() if v > 1))
+
+    before = scores(first, "before")
+    suggestions = []
+    for row in rows:
+        if row["owned_id"] is None:
+            continue
+        pokemon = catalog()[0][row["pokemon_id"]]
+        after = scores(row, "after")
+        reason = ("Affordable choice for an empty team." if not team["members"] else
+                  f"Defensive exposure {before['exposure']:.2f} → {after['exposure']:.2f}; "
+                  f"super-effective coverage {before['coverage']} → {after['coverage']} of 18 types.")
+        improved = sorted(t for t in before["weaknesses"] if after["weaknesses"][t] < before["weaknesses"][t] - 1e-9)
+        added = sorted(set(after["covered_types"]) - set(before["covered_types"]))
+        if improved:
+            reason += " Less exposed to: " + ", ".join(improved) + "."
+        if added:
+            reason += " Adds coverage against: " + ", ".join(added) + "."
+        budget = dict(version=team["budget"]["version"], limit=LIMIT, total=int(row["proposed_cost"]),
+                      remaining=LIMIT-int(row["proposed_cost"]), within_budget=True)
+        move_ids = default_moves(pokemon)
+        suggestions.append(dict(owned_id=row["owned_id"], pokemon_id=row["pokemon_id"], name=row["name"],
+                                cost=int(row["cost"]), budget=budget, before=before, after=after,
+                                exposure_reduction=float(row["exposure_reduction"]), coverage_gain=int(row["coverage_gain"]),
+                                replace_owned_id=row["replace_owned_id"], replace_name=row["replace_name"],
+                                suggested_moves=[m for m in pokemon["moves"] if m["id"] in move_ids], reason=reason,
+                                rank=int(row["recommendation_rank"])))
+    return dict(before=before, suggestions=suggestions, budget=team["budget"], empty_team=not team["members"],
+                note="MySQL ranks owned additions/replacements by defensive exposure, coverage gain and cost. "
+                     "Suggestions use default eligible moves. Review and save changes in Team Builder. "
+                     "These scores do not guarantee victory.")

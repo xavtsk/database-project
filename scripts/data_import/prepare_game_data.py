@@ -9,13 +9,21 @@ STAT_NAMES = ("hp", "attack", "defense", "special_attack", "special_defense", "s
 FALLBACK_MOVES = (33, 1, 98, 129)  # Tackle, Pound, Quick Attack, Swift; project exceptions.
 
 
-def prepare():
-    types = sorted((json.loads(p.read_bytes()) for p in (RAW / "types").glob("*.json")), key=lambda t: t["id"])
+def prepare(raw_dir=RAW, resources=None):
+    """Build the existing normalized layouts, optionally from an audited in-memory snapshot."""
+    def load(relative):
+        return resources[relative] if resources is not None else json.loads((raw_dir / relative).read_bytes())
+
+    def files(kind):
+        return sorted(k for k in resources if k.startswith(kind + "/")) if resources is not None else \
+            sorted(p.relative_to(raw_dir).as_posix() for p in (raw_dir / kind).glob("*.json"))
+
+    types = sorted((load(p) for p in files("types")), key=lambda t: t["id"])
     if {t["name"] for t in types} != set("normal fighting flying poison ground rock bug ghost steel fire water grass electric psychic ice dragon dark fairy".split()):
         raise ValueError("All 18 type resources are required; run setup with --fetch-dark once.")
     moves = []
-    for path in (RAW / "moves").glob("*.json"):
-        m = json.loads(path.read_bytes())
+    for path in files("moves"):
+        m = load(path)
         if isinstance(m["power"], int) and m["power"] > 0 and m["damage_class"]["name"] in ("physical", "special"):
             moves.append(dict(id=m["id"], name=m["name"], type_id=int(m["type"]["url"].rstrip("/").split("/")[-1]),
                               damage_class=m["damage_class"]["name"], power=m["power"], accuracy=m["accuracy"],
@@ -24,8 +32,8 @@ def prepare():
     move_ids = {m["id"] for m in moves}
     pokemon, pokemon_types, pokemon_moves = [], [], []
     for number in range(1, 152):
-        p = json.loads((RAW / "pokemon" / f"{number:03d}.json").read_bytes())
-        s = json.loads((RAW / "species" / f"{number:03d}.json").read_bytes())
+        p = load(f"pokemon/{number:03d}.json")
+        s = load(f"species/{number:03d}.json")
         rarity = "legendary" if s["is_legendary"] or s["is_mythical"] else "common" if s["capture_rate"] >= 150 else "uncommon" if s["capture_rate"] >= 75 else "rare"
         description = next((x["flavor_text"] for x in s["flavor_text_entries"] if x["language"]["name"] == "en"), "")
         stats = {x["stat"]["name"].replace("-", "_"): x["base_stat"] for x in p["stats"]}

@@ -82,6 +82,8 @@ python -m scripts.setup_databases
 
 Setup loads `.env`, checks that the server is MySQL, creates tables, imports the cached catalogue and prepares MongoDB. It upserts source data and preserves application data. Both database services must be running.
 
+For the approved external battle dataset, run `python -m scripts.data_import.import_historical` after setup. Setup creates its three historical tables; the separate importer verifies the reviewed source hashes/mappings and loads results. See the [historical import design](historical-import-proposal.md). The script loads `.env` itself and needs no global MySQL privileges.
+
 To create and inspect the MySQL tables before MongoDB is available:
 
 ```cmd
@@ -101,6 +103,8 @@ With `PORT=5050`, open **http://127.0.0.1:5050**. A connection error should be c
 ## Testing and existing data
 
 Offline checks: `python -m unittest discover -s tests -v`.
+
+The query-specific suite can use the regular project account: set `RUN_QUERY_TESTS=1`, then run `python -m unittest tests.test_database_queries tests.test_historical_queries -v`. MySQL fixtures roll back and MongoDB fixtures use a uniquely named disposable database. Auto-increment gaps may remain.
 
 Live integration tests need MySQL and MongoDB plus a separate test account authorized to create/drop uniquely named test databases. The normal project account is scoped to `pokedex_battle` and is not sufficient for that suite. Load test credentials into environment variables and set `RUN_DB_TESTS=1`. Do not broaden the normal account's grants just to run tests.
 

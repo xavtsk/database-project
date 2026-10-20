@@ -1,6 +1,6 @@
 # Team budgets, recommendations and predictions
 
-Status: approved by the user on 2026-10-19. Budget, owned-Pokémon recommendations and snapshot-based predictions are implemented on `feature/core-features`. Kaggle import remains pending dataset review and schema approval.
+Status: approved by the user on 2026-10-19. Budget, owned-Pokémon recommendations and snapshot-based predictions are implemented on `feature/core-features`. The separate Kaggle import design was inspected, approved and implemented on 2026-10-21.
 
 ## Purpose
 
@@ -53,7 +53,7 @@ Explain limitations: coverage is against individual defending types; the score d
 
 ## Kaggle follow-up
 
-The dataset mentioned in the project proposal is not present in the repository. Before importing:
+The originally proposed review sequence is now complete; see the [approved historical import design](historical-import-proposal.md) for results and limitations. The import follows these requirements:
 
 1. Inspect the supplied source files, source/license information, columns, identifier meanings and included Pokémon forms.
 2. Map external Pokémon identifiers explicitly to PokéAPI species IDs. Do not assume matching row numbers or names prove matching IDs.
@@ -78,8 +78,12 @@ The dataset mentioned in the project proposal is not present in the repository. 
 
 ## Implementation notes
 
+- Recommendation scoring/ranking and defensive/coverage analysis now execute in MySQL through reusable views and CTE queries. The original Python scorer remains a test reference. See [database evidence](database-evidence.md) for formulas, query structure and checks.
+- Battle analytics now has a rules/difficulty-filtered evidence panel for attempted-move damage, move repetition and saved prediction outcomes. This does not change the combat engine or saved prediction method.
+- The user approved downloading/inspecting Weedle's Cave and then its three-table import design. The [historical import design](historical-import-proposal.md) documents identity mismatches, duplicate policy and the implemented schema. The separate external matchup panel does not change simulator predictions or recommendation ranking.
+
 - Recommendations are available through `GET /api/teams/<id>/recommendations` and the Team Analysis screen. Historical species evidence is trainer-specific, uses current battle rules, counts each species once per battle and excludes forfeits. It is contextual team-result evidence, not part of candidate ranking.
 - New battle documents have optional-at-schema-level `budget` and `prediction` fields. They are always written by the new battle-creation code. Old battles do not require backfilling.
 - Prediction pressure uses a representative random damage factor of 0.925, the engine's current damage cap and accuracy-adjusted selected moves. It is an approximation, not the exact expectation of the random battle process. Supporting Speed uses the battle stat (`base speed + 5`).
 - Prediction evaluation is grouped by method version, battle rules, predicted label and actual outcome. Existing overall battle analytics continue to include forfeits; prediction evidence and evaluation exclude them.
-- Database setup now applies the versioned validator to existing battle collections using `collMod`. Run setup after updating code; no relational schema migration is needed for this extension.
+- Database setup applies the versioned validator to existing battle collections using `collMod`, creates SQL analysis views and initializes the three approved historical tables. Historical data loading remains a separate explicit command.

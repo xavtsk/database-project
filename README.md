@@ -18,6 +18,8 @@ python scripts/run_local.py
 
 Open **http://127.0.0.1:5050**. If an existing app is already running there, open that address without starting a second copy.
 
+After updating backend code, restart the running app: press **Ctrl+C in its terminal**, run `python scripts/run_local.py` again, then refresh the browser. An old Python process can serve updated frontend files while still missing new API routes. This causes HTML 404 responses and errors such as `Unexpected token '<'` or the newer explicit restart message.
+
 1. Click **Choose trainer**, create a profile and select Bulbasaur, Charmander or Squirtle.
 2. In **Collection & teams**, edit the initial team, stay within 30 points and select four distinct moves for each member. Save the team.
 3. Review **Team analysis** for stats, type weaknesses, selected-move coverage and recommended partners.
@@ -38,13 +40,14 @@ These extensions follow the [approved design](docs/database-design/predictions-r
 - **Historical evidence:** MongoDB supplies counts from your own prior battles. Prediction context matches rules, difficulty and team size; recommendation context describes species appearances. Forfeits are excluded from both. Different teams and opponents may be included, and small samples are labelled. Context does not change the heuristic prediction.
 - **Battle Analytics:** predictions are compared with outcomes, grouped by method and battle rules, with counts for wins, losses and draws. Favoured wins and disadvantaged losses are correct directional calls; evenly matched labels and draws are shown separately. Older battles without predictions remain readable and are excluded from prediction evaluation.
 
-After updating an existing installation, load `.env` and rerun database setup to apply the MongoDB validator. No new dependencies or relational table changes are required. From PowerShell or another shell, this command loads the existing local configuration before setup:
+After updating an existing installation, rerun database setup to apply the MongoDB validator, SQL analysis views and three approved historical tables, then restart the app. Setup loads `.env` automatically. No new runtime dependencies are required:
 
 ```sh
-python -c "from scripts.run_local import load_environment; load_environment(); from scripts.setup_databases import setup; setup()"
+python -m scripts.setup_databases
+python -m scripts.data_import.import_historical
 ```
 
-Then restart the app and try Collection & teams → Team analysis → Battle arena → Battle analytics. New trainers need battle rewards before additional owned Pokémon can be recommended. Historical Kaggle 1v1 data has **not** been imported; dataset inspection and identifier mapping are pending.
+Then restart the app and try Collection & teams → Team analysis → Battle arena → Battle analytics. New trainers need battle rewards before additional owned Pokémon can be recommended. The separate external matchup panel shows approved historical records when available; many pairs have no observations.
 
 ## Set up another computer
 
@@ -84,9 +87,9 @@ On the original development computer, MongoDB was installed in ignored `.local/m
 | --- | --- | --- |
 | Pokédex | Browse all 151, search name/ID, filter by type, inspect stats and move pools | Parameterized SQL queries, joins and a nested type-membership query |
 | Team Builder | Starter selection, collection, saved-team CRUD, 1–6 members, four distinct eligible moves each | Transactions, ownership foreign keys, slot checks and uniqueness constraints |
-| Team Analysis | Stat totals/averages, type distribution, defensive matchups and selected-move coverage | SQL aggregates and joins; combined type multipliers calculated in the backend |
+| Team Analysis | Stat totals/averages, type distribution, defensive matchups, selected-move coverage and owned-partner recommendations | SQL views, CTEs, joins, aggregates and window ranking, including combined defensive multipliers |
 | Battle Simulator | System-generated equal-size opponents, three difficulties, move/switch turns, HP/PP, rewards | Relational catalogue/collections; MongoDB state, snapshots and turn events |
-| Battle Analytics | History/resume, win rates, difficulty results, Pokémon appearances, move usage, turns and duration | MongoDB aggregation pipelines |
+| Battle Analytics | History/resume, win rates, usage, duration, rule/difficulty filters, damage per attempt, move repetition and prediction outcomes | MongoDB aggregation pipelines over embedded turn events |
 
 ## Rules and limits
 
@@ -125,9 +128,28 @@ python scripts/data_import/process_pokemon.py
 python scripts/data_import/process_pokemon.py --sample
 # Reproduce the gameplay catalogue, without network access.
 python scripts/data_import/prepare_game_data.py
+# Audit cached sources and normalized keys/references; no SQL writes.
+python -m scripts.data_import.audit_game_data
+# Audit, then replace the staged catalogue only if the whole batch is valid.
+python -m scripts.data_import.audit_game_data --stage
 ```
 
 `data/processed/game_data.json` contains 151 Pokémon, 18 types, 353 supported moves, 218 Pokémon-type relationships, 8,103 eligible Pokémon-move relationships and 324 type-effectiveness pairs. Every move-pool override is identified with `source: project_override`. Battle data comes from our own simulator, separately from PokéAPI.
+
+Setup runs the audited pipeline before SQL import. Its ignored `.local/import-audit.json` lists source hashes, validation issues, filtered moves and submitted table counts. See the [database evidence walkthrough](docs/database-design/database-evidence.md) for the parsing policy, SQL recommendation query, MongoDB metric definitions and query-plan command.
+
+The approved [Weedle's Cave dataset](https://www.kaggle.com/terminus7/pokemon-challenge) is cached separately under `data/raw/historical/weedles_cave/`: 800 Pokémon entries, 50,000 synthetic 1v1 results and 10,000 unlabelled matchups. External IDs differ from Pokédex IDs. The [approved historical design](docs/database-design/historical-import-proposal.md) uses three MySQL tables, 150 reviewed base-form mappings and 1,589 distinct in-scope results. Historical rows supply a separate **External 1v1 matchup evidence** panel in Battle analytics; they do not change simulator predictions or recommendation rankings.
+
+```sh
+# Optional: verify/reuse the approved source cache, downloading only if absent.
+python -m scripts.data_import.fetch_historical
+# Inspect without database writes.
+python -m scripts.data_import.inspect_historical
+# Import approved mappings/results after setup; safe reruns verify existing rows.
+python -m scripts.data_import.import_historical
+```
+
+The importer records an audit in `.local/historical-import.json`. It leaves the unnamed entry unresolved, excludes alternate forms from evidence, retains duplicate rows for traceability and excludes repeat copies from counts. Unlabelled test matchups are never treated as outcomes. The source algorithm and some base stats differ from this simulator; 1v1 rates are not team win probabilities.
 
 ## Verification
 
@@ -136,6 +158,15 @@ Run offline tests:
 ```sh
 python -m unittest discover -s tests -v
 ```
+
+The ten query-specific integration checks can use the regular `.env` account after setup. They roll back MySQL fixtures and use a separate disposable MongoDB database. PowerShell:
+
+```powershell
+$env:RUN_QUERY_TESTS = '1'
+python -m unittest tests.test_database_queries tests.test_historical_queries -v
+```
+
+For the new analytics screen, `python scripts/check_database_evidence.py` runs controlled browser fixtures with API reads intercepted and no API writes. It requires the optional browser dependencies described below and a running app.
 
 To reproduce the battle-pacing comparison (180 seeded starter battles per rule version, in memory, with no saved battles or rewards):
 

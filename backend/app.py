@@ -5,6 +5,7 @@ import secrets
 from flask import Flask, jsonify, render_template, request, session
 from pymongo.errors import PyMongoError
 import pymysql
+from werkzeug.exceptions import HTTPException
 
 from backend.config import ROOT
 from backend.db import mongo_client, mongo_database, query, check_mysql
@@ -17,6 +18,8 @@ from backend.team_analysis.recommendations import recommend
 from backend.battles.engine import RULES_VERSION
 from backend.battles import service as battles
 from backend.analytics import service as analytics
+from backend.analytics.strategy import report as strategy_report
+from backend.analytics.historical import matchup as historical_matchup
 
 
 def create_app(test_config=None):
@@ -62,6 +65,21 @@ def create_app(test_config=None):
     @app.errorhandler(ValidationError)
     def invalid(error):
         return jsonify(error=str(error)), 400
+
+    @app.errorhandler(HTTPException)
+    def http_error(error):
+        response = error.get_response()
+        if not request.path.startswith("/api/"):
+            return response
+        response.data = app.json.dumps(dict(error=error.description))
+        response.content_type = "application/json"
+        return response
+
+    @app.errorhandler(500)
+    def unexpected_error(error):
+        if not request.path.startswith("/api/"):
+            return error.get_response()
+        return jsonify(error="Server error. Check the app terminal for details, then retry."), 500
 
     @app.errorhandler(PyMongoError)
     @app.errorhandler(pymysql.MySQLError)
@@ -162,6 +180,16 @@ def create_app(test_config=None):
     @app.get("/api/analytics")
     def battle_analytics():
         return jsonify(analytics.analytics(logs, selected()))
+
+    @app.get("/api/analytics/strategy")
+    def battle_strategy():
+        return jsonify(strategy_report(logs, selected(), request.args.get("rules_version", RULES_VERSION),
+                                       request.args.get("difficulty", "")))
+
+    @app.get("/api/analytics/historical")
+    def external_matchup():
+        selected()
+        return jsonify(historical_matchup(request.args.get("pokemon_id", "4"), request.args.get("opponent_id", "7")))
 
     @app.get("/api/health")
     def health():

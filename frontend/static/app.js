@@ -85,8 +85,15 @@ async function openRewardCase() {
 
 async function api(path, method='GET', body) {
   const response = await fetch(`/api${path}`, {method, headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf}, body:body===undefined?undefined:JSON.stringify(body)});
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
+  const contentType=(response.headers.get('Content-Type')||'').split(';')[0].trim().toLowerCase();
+  if(contentType!=='application/json'&&!contentType.endsWith('+json')) {
+    const next=response.status===404?'Restart the Python app to load the latest routes, then refresh this page.':'Check the app terminal for the server error, then refresh this page.';
+    throw new Error(`API /api${path.split('?')[0]} returned a non-JSON response (HTTP ${response.status}). ${next}`);
+  }
+  let result;
+  try {result=await response.json();}
+  catch {throw new Error(`API /api${path.split('?')[0]} returned invalid JSON (HTTP ${response.status}). Check the app terminal for details.`);}
+  if (!response.ok) throw new Error(result?.error || `Request failed (${response.status})`);
   return result;
 }
 function notice(message='') {const box=document.querySelector('#notice');box.textContent=message;box.hidden=!message;}
@@ -206,15 +213,35 @@ function drawBattle() {
     `<section class="result"><h2>${b.status==='win'?'Victory. A new partner awaits!':b.status==='loss'?'A lesson for the next battle.':'An evenly matched battle.'}</h2>${b.status==='win'&&b.reward?rewardCase(b):`<p class="note">${b.turn_count} turns played. Adjust your team or try another difficulty.</p>`}<div class="row spacer">${button('Battle again','new-battle','','primary')}${button('View collection','go-teams')}</div></section>`}${rules(b.rules_version)}</section>
     <aside class="stack">${predictionPanel(b)}<section class="card"><h3>Battle log</h3><ol class="battle-log">${b.turns.length?b.turns.slice().reverse().map(t=>`<li><span class="turn-label">${t.kind==='turn'?'TURN '+t.number:title(t.kind).toUpperCase()}</span><br>${t.events.map(e=>esc(eventText(e))).join('<br>')}</li>`).join(''):'<li>Your opponent is ready. Choose your first move.</li>'}</ol></section><section class="card"><h4>Opponent matching</h4><p class="note">Your strength: ${b.generation.player_strength}<br>Target: ${Math.round(b.generation.target_strength)}<br>Opponent strength: ${b.generation.actual_strength}</p><small>Strength = total base stats across the team.</small></section></aside></div>`;
 }
-async function renderAnalytics() {
-  const [a,h]=await Promise.all([api('/analytics'),api('/battles')]);const s=a.summary;
+async function renderAnalytics(rulesVersion='',difficulty='') {
+  const previousHistorical=document.querySelector('#historical-form');
+  const historicalIds=previousHistorical?new FormData(previousHistorical):null;
+  const filters=new URLSearchParams({difficulty});if(rulesVersion)filters.set('rules_version',rulesVersion);
+  const [a,h,strategy]=await Promise.all([api('/analytics'),api('/battles'),api(`/analytics/strategy?${filters}`)]);const s=a.summary;
   main.innerHTML=heading('EVERY BATTLE TELLS A STORY','Battle analytics','Look back, find patterns, and make your next team stronger.')+
     `<div class="metric-grid">${metric('Completed battles',s.battles)}${metric('Win rate',s.battles?(s.wins/s.battles*100).toFixed(1)+'%':'—')}${metric('Average turns',Number(s.average_turns||0).toFixed(1))}${metric('Average duration',Math.round(s.average_seconds||0)+'s')}</div>
     <p class="note">Win rate = wins ÷ all completed battles, including draws and forfeits. Duration includes thinking time. Active battles are excluded.</p>
     <div class="two-col"><section class="card"><h3>Results by difficulty</h3>${a.difficulty.length?table(['Difficulty','Wins','Losses','Draws','Battles'],a.difficulty.map(d=>[esc(d._id),d.wins,d.losses,d.draws,d.battles])):empty('Finish your first battle to see results.')}</section><section class="card"><h3>Most-used moves</h3>${a.moves.length?table(['Move','Uses'],a.moves.map(m=>[esc(title(m.name)),m.uses])):'<p class="note">Your executed moves will appear here, including misses.</p>'}</section></div>
     <section class="card spacer"><h3>Pokémon performance</h3><p class="note">Appearances count completed battles containing the species, once per battle. Win rate describes the team result, not individual knockouts.</p>${a.pokemon.length?table(['Pokémon','Appearances','Wins','Win rate'],a.pokemon.map(p=>[esc(title(p.name)),p.appearances,p.wins,(p.wins/p.appearances*100).toFixed(1)+'%'])):empty('No completed battles yet.')}</section>
-    <section class="card spacer" id="prediction-results"><h3>Predictions and actual outcomes</h3><p class="note">Saved predictions only; active battles and forfeits excluded. Favoured + win and disadvantaged + loss count as correct directional calls. Draws and evenly matched labels are shown separately. These results do not establish a calibrated win probability.</p>${predictionResults(a.predictions)}</section>
+    <section class="card spacer" id="strategy-evidence"><h3>Battle strategy evidence</h3>
+    <form id="strategy-form" class="toolbar"><label>Battle rules<select name="rules_version">${strategy.rules_versions.map(v=>`<option value="${esc(v)}" ${v===strategy.rules_version?'selected':''}>${esc(v)}</option>`).join('')}</select></label><label>Difficulty<select name="difficulty"><option value="">All difficulties</option>${['easy','medium','hard'].map(d=>`<option value="${d}" ${d===strategy.difficulty?'selected':''}>${title(d)}</option>`).join('')}</select></label><button class="quiet">Apply filters</button></form>
+    <p><strong>${strategy.battles} completed battles</strong> under these filters. ${strategy.battles<10?'Small sample: treat patterns cautiously.':''}</p><p class="note">${esc(strategy.note)}</p>
+    <h4>Damage per attempted move</h4>${strategy.moves.length?table(['Move','Attempts','Hit rate','Total damage','Damage / attempt'],strategy.moves.map(m=>[esc(title(m.name)),m.attempts,(m.hit_rate*100).toFixed(1)+'%',m.damage,m.damage_per_attempt.toFixed(1)])):'<p class="note">No player attacks in the selected battles yet.</p>'}
+    <h4 class="spacer">Does repeating one move correlate with wins?</h4><p class="note">Only battles with at least ${strategy.min_attempts} player attacks. High repetition means one move accounts for at least ${strategy.dominant_share*100}% of attacks. Compare rows within the same difficulty and team size; the battle count is the sample size.</p>
+    ${strategy.repetition.length?table(['Difficulty','Team size','Pattern','Battles','Wins / losses / draws','Win rate','Average top-move share'],strategy.repetition.map(r=>[esc(r._id.difficulty),r._id.team_size,esc(r._id.pattern),`${r.battles}${r.battles<10?' (small sample)':''}`,`${r.wins} / ${r.losses} / ${r.draws}`,(r.wins/r.battles*100).toFixed(1)+'%',(r.average_top_share*100).toFixed(1)+'%'])):'<p class="note">No battles with enough attempted moves under these filters.</p>'}
+    <div class="spacer" id="prediction-results"><h4>Predictions and actual outcomes</h4><p class="note">Same rules/difficulty filters as above; forfeits and missing predictions excluded. Favoured + win and disadvantaged + loss count as correct directional calls. Draws and evenly matched labels are shown separately. These results do not establish a calibrated win probability.</p>${predictionResults(strategy.predictions.map(r=>({...r,_id:{...r._id,rules:strategy.rules_version}})))}</div></section>
+    <section class="card spacer" id="historical-evidence"><h3>External 1v1 matchup evidence</h3><p>Loading historical matchups…</p></section>
     <section class="card spacer"><h3>Battle history</h3><p class="note">Your latest 50 battles. Open an active battle to resume it.</p>${h.battles.length?table(['Team','Difficulty','Result','Turns','Started',''],h.battles.map(b=>[esc(b.team_name),esc(b.difficulty),`<span class="badge">${b.status}</span>`,b.turn_count,esc(new Date(b.started_at).toLocaleString()),button(b.status==='active'?'Resume':'Review','review-battle',b._id,'quiet small')])):empty('Your first battle starts a new chapter.')}</section>`;
+  await renderHistorical(historicalIds?.get('pokemon_id')||4,historicalIds?.get('opponent_id')||7);
+}
+async function renderHistorical(pokemonId=4,opponentId=7) {
+  const target=document.querySelector('#historical-evidence');if(!target)return;
+  const h=await api(`/analytics/historical?${new URLSearchParams({pokemon_id:pokemonId,opponent_id:opponentId})}`);
+  const options=selected=>h.pokemon.map(p=>`<option value="${p.id}" ${p.id===Number(selected)?'selected':''}>${esc(title(p.name))}</option>`).join('');
+  target.innerHTML=`<h3>External 1v1 matchup evidence</h3><p class="note">${esc(h.note)} Simulator rule/difficulty filters above apply to your own battles only.</p>
+    <form id="historical-form" class="toolbar"><label>Pokémon<select name="pokemon_id">${options(h.pokemon_id)}</select></label><label>Opponent<select name="opponent_id">${options(h.opponent_id)}</select></label><button class="quiet">Compare matchup</button></form>
+    ${h.installed?`<p class="note">Source: <a href="https://www.kaggle.com/terminus7/pokemon-challenge" target="_blank" rel="noopener noreferrer">Pokémon — Weedle's Cave</a> · ${esc(h.source.license)}. Version ${esc(h.source.manifest_sha256.slice(0,12))}.</p>
+    ${h.rows.length?`<p>${h.battles} distinct source results. ${h.battles<10?'Small sample: treat these results cautiously.':''}</p>${table(['Selected Pokémon attacks','Results','Wins','Losses','Historical win rate'],h.rows.map(r=>[esc(r.attacker_role),`${r.battles}${r.battles<10?' (small sample)':''}`,r.wins,r.losses,(r.win_rate*100).toFixed(1)+'%']))}`:'<p>No historical evidence for this matchup in the approved mapped records.</p>'}`:'<p>The historical dataset has not been imported yet.</p>'}`;
 }
 function predictionResults(rows) {
   if(!rows.length)return '<p>No completed battles with predictions yet.</p>';
@@ -269,6 +296,8 @@ document.addEventListener('submit',event=>{
     const data=new FormData(form);
     if(form.id==='profile-form'){await api('/profiles','POST',{name:data.get('name')});state.draft=null;state.battle=null;await refreshSession();startersModal();}
     if(form.id==='search-form')await renderPokedex(data.get('q'),data.get('type'));
+    if(form.id==='strategy-form')await renderAnalytics(data.get('rules_version'),data.get('difficulty'));
+    if(form.id==='historical-form')await renderHistorical(data.get('pokemon_id'),data.get('opponent_id'));
     if(form.id==='team-form'){rememberName();const d=state.draft;const saved=await api(d.id?`/teams/${d.id}`:'/teams',d.id?'PUT':'POST',{name:d.name,members:d.members.map(m=>({owned_id:m.owned_id,moves:m.moves}))});state.draft=await api(`/teams/${saved.id}`);await renderTeams();notice('Team saved. Ready when you are.');}
     if(form.id==='battle-form'){state.battle=await api('/battles','POST',{team_id:Number(data.get('team_id')),difficulty:data.get('difficulty')});drawBattle();}
   });

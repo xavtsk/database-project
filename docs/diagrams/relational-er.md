@@ -1,6 +1,6 @@
 # Prototype relational relationships
 
-Implemented in `database/relational/schema.sql`. Composite ownership foreign keys ensure a team's members belong to that team's trainer.
+Implemented in `database/relational/schema.sql` and the approved external-evidence extension `database/relational/historical.sql`. Composite ownership foreign keys ensure a team's members belong to that team's trainer.
 
 ```mermaid
 erDiagram
@@ -20,6 +20,12 @@ erDiagram
     MOVES ||--o{ TEAM_MEMBER_MOVES : selected_move
     TRAINERS ||--o{ BATTLE_REWARDS : receives
     OWNED_POKEMON ||--o| BATTLE_REWARDS : awarded_instance
+    HISTORICAL_SOURCES ||--o{ HISTORICAL_POKEMON : identifies
+    POKEMON o|--o{ HISTORICAL_POKEMON : reviewed_mapping
+    HISTORICAL_POKEMON ||--o{ HISTORICAL_COMBATS : first_participant
+    HISTORICAL_POKEMON ||--o{ HISTORICAL_COMBATS : second_participant
+    HISTORICAL_POKEMON ||--o{ HISTORICAL_COMBATS : winner
+    HISTORICAL_COMBATS o|--o{ HISTORICAL_COMBATS : original_for_copy
 ```
 
 - Team slots are 1–6, move slots 1–4 and Pokémon type slots 1–2.
@@ -29,3 +35,6 @@ erDiagram
 - Server-side transactional validation checks move eligibility and the four-move requirement.
 - `battle_rewards.battle_id` is unique and references a MongoDB battle UUID logically; cross-database foreign keys are not available.
 - MongoDB stores immutable team snapshots for history, mutable HP/PP for play, and flexible turn events. Deleting a saved team does not delete its battle history.
+- `historical_pokemon` uses `(source_id, external_id)` as its primary key; a nullable reviewed mapping points to the playable species. Alternate forms remain unmapped.
+- `historical_combats` uses `(source_id, source_row)` and three composite participant/winner foreign keys. Its duplicate marker retains traceability; the importer validates duplicate lineage and default evidence excludes repeat copies. See the [historical design](../database-design/historical-import-proposal.md) for the tested enforcement limits.
+- Historical source stats/results are preserved separately and do not overwrite the catalogue or MongoDB simulator history. Analysis views derive costs, defensive multipliers and ranked default moves without storing duplicate values.
