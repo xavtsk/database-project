@@ -1,4 +1,4 @@
-"""Actual MariaDB/MongoDB integration tests; opt in with RUN_DB_TESTS=1.
+"""Actual MySQL/MongoDB integration tests; opt in with RUN_DB_TESTS=1.
 
 Creates uniquely named disposable databases and drops only those databases.
 Uses SQL_USER credentials from the environment; requires CREATE/DROP permission.
@@ -17,6 +17,7 @@ from backend.catalog import catalog
 from backend.config import sql_options
 from backend.db import transaction, query
 from backend.battles.service import select_reward, generate_opponent, deliver_reward
+from backend.battles.prediction import historical_context
 from scripts.setup_databases import setup
 
 
@@ -103,6 +104,61 @@ class DatabaseIntegrationTests(unittest.TestCase):
         resumed=self.client.get(f'/api/battles/{b["_id"]}').json
         self.assertEqual(resumed['revision'],1)
         self.assertEqual(len(resumed['turns']),1)
+        self.assertEqual(resumed['prediction'],b['prediction'])
+        self.assertEqual(resumed['budget'],b['budget'])
+
+    def test_budget_rejection_and_owned_recommendations(self):
+        original=self.client.get(f'/api/teams/{self.team}').json
+        with transaction() as cursor:
+            for _ in range(6):
+                cursor.execute("INSERT INTO owned_pokemon(trainer_id,pokemon_id,source) VALUES (%s,150,'reward')",(self.trainer,))
+        owned=self.client.get('/api/collection').json['pokemon']
+        expensive=[{'owned_id':o['owned_id'],'moves':[m['id'] for m in o['pokemon']['moves'][:4]]}
+                   for o in owned if o['pokemon']['id']==150]
+        result=self.client.put(f'/api/teams/{self.team}',json={'name':'Over budget','members':expensive},headers=self.headers)
+        self.assertEqual(result.status_code,400)
+        self.assertEqual(self.client.get(f'/api/teams/{self.team}').json,original)
+        empty=self.post('/api/teams',{'name':'Empty advice','members':[]}).json['id']
+        advice=self.client.get(f'/api/teams/{empty}/recommendations').json
+        self.assertTrue(advice['empty_team'])
+        self.assertTrue(advice['suggestions'])
+        ids={o['owned_id'] for o in owned}
+        for suggestion in advice['suggestions']:
+            self.assertIn(suggestion['owned_id'],ids)
+            self.assertLessEqual(suggestion['budget']['total'],30)
+        self.post('/api/profiles',{'name':'Other trainer'})
+        self.assertEqual(self.client.get(f'/api/teams/{empty}/recommendations').status_code,400)
+
+    def test_prediction_context_outcomes_forfeits_and_legacy_documents(self):
+        b=self.start();original=self.logs.find_one({'_id':b['_id']})
+        self.logs.delete_one({'_id':b['_id']})
+        for status in ('win','loss','draw'):
+            row=deepcopy(original)
+            row.update(_id=str(uuid.uuid4()),status=status)
+            row['prediction']['label']='favoured'
+            self.logs.insert_one(row)
+        forfeit=deepcopy(row)
+        forfeit.update(_id=str(uuid.uuid4()),status='loss',turns=[{'kind':'forfeit','events':[{'kind':'forfeit'}]}])
+        self.logs.insert_one(forfeit)
+        legacy=deepcopy(row)
+        legacy.update(_id=str(uuid.uuid4()),status='draw')
+        del legacy['prediction'];del legacy['budget']
+        self.logs.insert_one(legacy)
+        for change in ({'difficulty':'hard'},{'rules_version':'prototype-1'},{'trainer_id':999999}):
+            different=deepcopy(row);different.update(_id=str(uuid.uuid4()),**change)
+            self.logs.insert_one(different)
+        different=deepcopy(row);different['_id']=str(uuid.uuid4())
+        different['initial']['player']['members']*=2
+        self.logs.insert_one(different)
+        context=historical_context(self.logs,self.trainer,original['rules_version'],'easy',1)
+        self.assertEqual(context['battles'],4)  # Three predicted results plus the legacy draw.
+        self.assertEqual((context['wins'],context['losses'],context['draws']),(1,1,2))
+        result=self.client.get('/api/analytics').json
+        current=[r for r in result['predictions'] if r['_id']['rules']==original['rules_version']]
+        # The other difficulty and size remain useful evaluation rows; forfeits and legacy predictions do not.
+        self.assertEqual(sum(r['battles'] for r in current),5)
+        self.assertNotIn('prediction',self.client.get(f"/api/battles/{legacy['_id']}").json)
+        self.assertEqual(self.start()['prediction']['history']['battles'],4)
 
     def test_reward_retry_after_partial_delivery_and_snapshot_history(self):
         b=self.start();stored=self.logs.find_one({'_id':b['_id']})

@@ -11,6 +11,8 @@ from backend.db import transaction
 from backend.errors import ValidationError, integer
 from backend.teams.service import default_moves, get_team
 from backend.battles.engine import RULES_VERSION, combatant, resolve
+from backend.battles.prediction import predict, historical_context
+from backend.teams.budget import validate_budget
 
 RARITIES = (("common", .60), ("uncommon", .25), ("rare", .12), ("legendary", .03))
 
@@ -88,13 +90,17 @@ def start_battle(battles, trainer_id, team_id, difficulty, rng=None):
     if not 1 <= len(team["members"]) <= 6:
         raise ValidationError("Choose a team with 1–6 Pokémon")
     player = [m["pokemon"] for m in team["members"]]
+    budget = validate_budget(player)
     opponent, generation = generate_opponent(player, difficulty, rng)
     sides = dict(player=dict(active=0, members=[combatant(m["pokemon"], m["moves"]) for m in team["members"]]),
                  opponent=dict(active=0, members=[combatant(p, default_moves(p)) for p in opponent]))
+    prediction = predict(sides, catalog()[2], RULES_VERSION, player, opponent)
+    prediction["history"] = historical_context(battles, trainer_id, RULES_VERSION, difficulty, len(player))
     battle = dict(_id=str(uuid.uuid4()), trainer_id=trainer_id, team_id=team_id, team_name=team["name"],
                   difficulty=difficulty, rules_version=RULES_VERSION, revision=0, status="active",
                   started_at=datetime.now(timezone.utc), ended_at=None, turn_count=0,
-                  initial=deepcopy(sides), generation=generation, **sides, turns=[], reward=None)
+                  initial=deepcopy(sides), generation=generation, budget=budget, prediction=prediction,
+                  **sides, turns=[], reward=None)
     try:
         battles.insert_one(battle)
     except DuplicateKeyError as error:

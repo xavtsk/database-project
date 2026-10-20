@@ -2,7 +2,7 @@
 
 ## INF2003 Database Systems Group Project
 
-A five-person university database project combining a Pokémon collection and battle application with **MariaDB** and **MongoDB**. The original 151 Pokémon are available in a Pokémon-coloured browser interface. Repository name: `pokedex-battle-analytics`.
+A five-person university database project combining a Pokémon collection and battle application with **MySQL** and **MongoDB**. The original 151 Pokémon are available in a Pokémon-coloured browser interface. Repository name: `pokedex-battle-analytics`.
 
 The playable prototype is on `feature/core-features`. Its database schema and simplified mechanics follow the [approved design](docs/database-design/playable-prototype-proposal.md). This is a local demonstration with selectable trainer profiles, not an authenticated public service.
 
@@ -10,56 +10,73 @@ See the [application architecture](docs/diagrams/application-architecture.md) fo
 
 ## Play locally
 
-On the development computer, the databases and ignored `.env` have been configured. Start the app from the repository root:
+After completing the [Windows MySQL setup](docs/database-design/mysql-setup.md) and starting both databases, run from the repository root:
 
 ```sh
-python3 scripts/run_local.py
+python scripts/run_local.py
 ```
 
 Open **http://127.0.0.1:5050**. If an existing app is already running there, open that address without starting a second copy.
 
 1. Click **Choose trainer**, create a profile and select Bulbasaur, Charmander or Squirtle.
-2. In **Collection & teams**, edit the initial team and select four distinct moves for each member. Save the team.
-3. Review **Team analysis** for stats, type weaknesses and selected-move coverage.
-4. In **Battle arena**, select a saved team and Easy, Medium or Hard. Pick a move each turn, or switch Pokémon.
-5. A win awards one random Pokémon to your collection. Add it to a team if desired. Review **Battle analytics** for history, win rates, usage and duration.
+2. In **Collection & teams**, edit the initial team, stay within 30 points and select four distinct moves for each member. Save the team.
+3. Review **Team analysis** for stats, type weaknesses, selected-move coverage and recommended partners.
+4. In **Battle arena**, select a saved team and Easy, Medium or Hard. Review the pre-battle prediction, then pick a move each turn or switch Pokémon.
+5. After a win, click **Open reward case** to reveal your Pokémon with a scrolling case animation, or skip straight to the reveal. The reward enters your collection automatically. Add it to a team if desired. Review **Battle analytics** for history, win rates, usage and duration.
 
 Teams can contain 1–6 Pokémon. Reloading resumes an active battle. Saved-team edits do not change an existing battle's snapshots. Reopening a winning battle retries any pending reward delivery without awarding twice.
 
-## Set up another computer
+Victory cases show the server's saved reward; opening, skipping or replaying the visual never rolls or grants another Pokémon. Revealed cases are remembered in the current browser. Reduced-motion settings reveal the reward immediately. A failed sprite or decorative catalogue request does not prevent the reward text from appearing.
 
-Requirements: Python 3.10+, MariaDB 10.6+ (tested with 12.3), and MongoDB 8.0+ (tested with 8.0.12). Both database services must be running locally or accessible through your configured connection. No frontend build tool is required.
+## Team budget, recommendations and predictions
+
+These extensions follow the [approved design](docs/database-design/predictions-recommendations-proposal.md).
+
+- **Team Builder:** each Pokémon costs `ceil(total six base stats / 100)` points, with a **30-point team budget**. For example, Squirtle's 314 total stats cost 4 points. Costs and remaining budget update as you edit. The server checks the limit on save and before starting a battle. Existing teams stay visible; teams above the limit must be adjusted before saving or starting a new battle. Existing active battles continue under their saved rules.
+- **Team Analysis:** recommended partners come from your own collection outside the selected saved team. Suggestions reduce average defensive exposure or improve selected-move coverage while staying in budget. Full teams receive replacement suggestions; empty teams receive affordable choices. Suggested default moves and before/after figures are shown. Review and save changes in Team Builder; recommendations never edit teams automatically.
+- **Battle Arena:** each new battle displays **favoured / evenly matched / disadvantaged** before the first turn, based on both actual teams and selected moves. The prediction is saved with the starting snapshots and stays fixed when resuming. Accuracy, damage caps and type effectiveness affect the score. Speed and base stats are supporting explanations; the score does not simulate a complete battle and is not a win probability.
+- **Historical evidence:** MongoDB supplies counts from your own prior battles. Prediction context matches rules, difficulty and team size; recommendation context describes species appearances. Forfeits are excluded from both. Different teams and opponents may be included, and small samples are labelled. Context does not change the heuristic prediction.
+- **Battle Analytics:** predictions are compared with outcomes, grouped by method and battle rules, with counts for wins, losses and draws. Favoured wins and disadvantaged losses are correct directional calls; evenly matched labels and draws are shown separately. Older battles without predictions remain readable and are excluded from prediction evaluation.
+
+After updating an existing installation, load `.env` and rerun database setup to apply the MongoDB validator. No new dependencies or relational table changes are required. From PowerShell or another shell, this command loads the existing local configuration before setup:
 
 ```sh
-python3 -m pip install -r requirements.txt
-cp .env.example .env
+python -c "from scripts.run_local import load_environment; load_environment(); from scripts.setup_databases import setup; setup()"
 ```
 
-Edit `.env` with your own SQL credentials, database names, MongoDB URI, a random session secret and `PORT=5050`. Virtual environments are optional; use the Python environment appropriate for your machine. Never commit `.env` or credentials.
+Then restart the app and try Collection & teams → Team analysis → Battle arena → Battle analytics. New trainers need battle rewards before additional owned Pokémon can be recommended. Historical Kaggle 1v1 data has **not** been imported; dataset inspection and identifier mapping are pending.
 
-The setup command needs a SQL account allowed to create tables and import data in the selected database. A local database administrator can provision an account, for example:
+## Set up another computer
+
+Requirements: Python 3.10+, **MySQL Server 8.0.19+ (8.4 LTS recommended)**, and MongoDB 8.0+. Earlier prototype verification used MariaDB; see the [MySQL switch notes](docs/progress-report/mysql-switch-verification.md) for current checks. MySQL Workbench is the database client; install MySQL Server separately. Both database services must be running locally or accessible through your configured connection. No frontend build tool is required.
+
+```sh
+python -m pip install -r requirements.txt
+copy .env.example .env
+```
+
+Edit `.env` with your own MySQL project-account credentials, database names, MongoDB URI, a random session secret and `PORT=5050`. The project defaults to `SQL_PORT=3307` so the existing MariaDB service on 3306 does not conflict; set this to your actual MySQL port. Virtual environments are optional; use the Python environment appropriate for your machine. Never commit `.env` or credentials.
+
+The setup command needs a MySQL account allowed to create tables and import data in the selected database. A local database administrator can provision an account, for example:
 
 ```sql
-CREATE DATABASE pokedex_battle CHARACTER SET utf8mb4;
+CREATE DATABASE IF NOT EXISTS pokedex_battle CHARACTER SET utf8mb4;
 CREATE USER 'pokedex'@'localhost' IDENTIFIED BY 'replace-with-your-local-password';
 GRANT ALL PRIVILEGES ON pokedex_battle.* TO 'pokedex'@'localhost';
 ```
 
-For a local socket connection, set `SQL_SOCKET` to your MariaDB socket path. Otherwise use `SQL_HOST` and `SQL_PORT`. Credentials in `.env.example` are placeholders, not working accounts.
+For a local Unix socket connection, set `SQL_SOCKET` to your MySQL socket path. Otherwise use `SQL_HOST` and `SQL_PORT`. Credentials in `.env.example` are placeholders, not working accounts.
 
-Load the environment and initialize both databases:
+Initialize both databases (`.env` is loaded automatically):
 
 ```sh
-set -a
-source .env
-set +a
-python3 -m scripts.setup_databases --fetch-dark
-python3 scripts/run_local.py
+python -m scripts.setup_databases
+python scripts/run_local.py
 ```
 
-`setup_databases` creates missing schema objects and upserts catalogue records; it does not reset trainer collections, teams or history. `--fetch-dark` retrieves only the missing Dark-type resource if it is not already cached. Existing raw files are reused. Restart the app after changing imported catalogue data because it caches catalogue lookups in memory.
+`setup_databases` verifies the MySQL server version, creates missing InnoDB schema objects and upserts catalogue records using MySQL row aliases; it does not reset trainer collections, teams or history. `--fetch-dark` retrieves only the missing Dark-type resource if it is not already cached. Existing raw files are reused. Restart the app after changing imported catalogue data because it caches catalogue lookups in memory.
 
-On the original development computer, MongoDB was installed in ignored `.local/mongodb/`, with storage in `.local/mongo-data/`. The launcher can restart that local binary when needed. Other machines must install/configure their own MongoDB service; these binaries and database files are not in Git. An existing local MariaDB service is reused, not installed by the launcher.
+On the original development computer, MongoDB was installed in ignored `.local/mongodb/`, with storage in `.local/mongo-data/`. The launcher can restart that local binary when needed. Other machines must install/configure their own MongoDB service; these binaries and database files are not in Git. The launcher uses the configured MySQL Server; it does not install or start MySQL. Setup and startup reject connections to MariaDB. The existing MariaDB service may stay installed on its own port.
 
 ## Five implemented features
 
@@ -101,13 +118,13 @@ The downloader uses sequential requests, a short delay, timeouts, and a local ca
 
 ```sh
 # Reuse the original 151-resource scope and fill any missing references.
-python3 scripts/data_import/fetch_pokeapi.py --start-id 1 --end-id 151
+python scripts/data_import/fetch_pokeapi.py --start-id 1 --end-id 151
 # Reproduce stats and types: 151 Pokémon rows, 218 type relationships.
-python3 scripts/data_import/process_pokemon.py
+python scripts/data_import/process_pokemon.py
 # Optional original small experiment, written to data/processed/sample/.
-python3 scripts/data_import/process_pokemon.py --sample
+python scripts/data_import/process_pokemon.py --sample
 # Reproduce the gameplay catalogue, without network access.
-python3 scripts/data_import/prepare_game_data.py
+python scripts/data_import/prepare_game_data.py
 ```
 
 `data/processed/game_data.json` contains 151 Pokémon, 18 types, 353 supported moves, 218 Pokémon-type relationships, 8,103 eligible Pokémon-move relationships and 324 type-effectiveness pairs. Every move-pool override is identified with `source: project_override`. Battle data comes from our own simulator, separately from PokéAPI.
@@ -117,27 +134,28 @@ python3 scripts/data_import/prepare_game_data.py
 Run offline tests:
 
 ```sh
-python3 -m unittest discover -s tests -v
+python -m unittest discover -s tests -v
 ```
 
 To reproduce the battle-pacing comparison (180 seeded starter battles per rule version, in memory, with no saved battles or rewards):
 
 ```sh
-python3 -m scripts.check_battle_balance
+python -m scripts.check_battle_balance
 ```
 
-Integration tests use real database services and **uniquely named disposable test databases**. They require a SQL account with permission to create and drop those test databases. Load the configured credentials as above, then run:
+Integration tests use real MySQL/MongoDB services and **uniquely named disposable test databases**. They require a MySQL test account with permission to create and drop those test databases. The regular app account has access only to the application database. In PowerShell, load a test account into the environment and run:
 
 ```sh
-RUN_DB_TESTS=1 python3 -m unittest discover -s tests -v
+$env:RUN_DB_TESTS = '1'
+python -m unittest discover -s tests -v
 ```
 
 Optional browser checks require a running app. They create a labelled test trainer and real battle history in the selected application's databases:
 
 ```sh
-python3 -m pip install -r requirements-dev.txt
-python3 -m playwright install chromium
-python3 scripts/check_browser.py
+python -m pip install -r requirements-dev.txt
+python -m playwright install chromium
+python scripts/check_browser.py
 ```
 
 The browser check covers all five screens, all difficulties, reload/resume, reward collection, team CRUD and a mobile viewport. It writes screenshots to ignored `.local/`. Battles are randomized; if no victory occurs in a browser run, rerun to exercise the reward screen. Backend reward tests use controlled randomness.
@@ -146,7 +164,7 @@ The browser check covers all five screens, all difficulties, reload/resume, rewa
 
 - `backend/`: Flask entry point, shared database helpers and the five feature modules.
 - `frontend/`: browser page, CSS and JavaScript.
-- `database/relational/`: MariaDB schema.
+- `database/relational/`: MySQL InnoDB schema.
 - `database/nosql/`: MongoDB battle validation rules; setup also creates indexes.
 - `scripts/`: raw collection, processing, database setup, app launcher and optional browser check.
 - `tests/`: data, battle-rule and real-database integration tests.

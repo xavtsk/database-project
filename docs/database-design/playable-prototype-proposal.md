@@ -2,6 +2,10 @@
 
 Status: approved by the user on 2026-09-22 and implemented on `feature/core-features`. This document preserves the design choices reviewed before coding; see `battle-rules.md` and the root README for the current implementation and setup.
 
+## Relational database change ? 2026-10-19
+
+The user explicitly requested MySQL instead of MariaDB. The original MariaDB selection below is historical and is superseded by MySQL Server through PyMySQL, with the RSA extra for default MySQL password authentication. Current setup targets MySQL 8.0.19+ (8.4 LTS recommended); see `mysql-setup.md`. Other prototype decisions are unchanged. Earlier MariaDB verification reports do not establish MySQL verification.
+
 ## Agreed product requirements
 
 - Five features: Pokédex, Team Builder, Team Analysis, Battle Simulator and Battle Analytics.

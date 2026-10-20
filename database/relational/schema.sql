@@ -1,4 +1,6 @@
--- Approved prototype schema. Initialization creates missing objects only.
+-- MySQL 8.0.19+ (8.4 LTS recommended). Initialization creates missing objects only.
+-- InnoDB supplies the transactions and foreign-key enforcement used by the app.
+SET default_storage_engine=InnoDB;
 CREATE TABLE IF NOT EXISTS pokemon (
  id SMALLINT PRIMARY KEY, name VARCHAR(40) NOT NULL UNIQUE,
  hp SMALLINT NOT NULL CHECK(hp>0), attack SMALLINT NOT NULL CHECK(attack>0),

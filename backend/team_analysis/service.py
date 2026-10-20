@@ -5,7 +5,7 @@ from backend.teams.service import get_team
 
 def analyse(trainer_id, team_id):
     team = get_team(trainer_id, team_id)
-    # These statistics are computed by MariaDB, rather than by the browser.
+    # These statistics are computed by MySQL, rather than by the browser.
     aggregates = ",".join(f"SUM(p.{s}) AS total_{s}, AVG(p.{s}) AS average_{s}" for s in STATS)
     stats = query(f"""SELECT COUNT(*) AS size,{aggregates} FROM team_members tm
         JOIN owned_pokemon o ON o.id=tm.owned_id JOIN pokemon p ON p.id=o.pokemon_id
@@ -21,4 +21,4 @@ def analyse(trainer_id, team_id):
     moves = [move for m in team["members"] for move in m["pokemon"]["moves"] if move["id"] in m["moves"]]
     coverage = [dict(type=t["name"], best_multiplier=max((effectiveness(m["type"], [t["name"]]) for m in moves), default=0)) for t in catalog()[1]]
     return dict(team=team["name"], stats={k: float(v) if v is not None else 0 for k, v in stats.items()},
-                distribution=distribution, matchups=matchups, coverage=coverage)
+                distribution=distribution, matchups=matchups, coverage=coverage, budget=team["budget"])

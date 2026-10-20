@@ -16,6 +16,72 @@ const table = (headers, rows) => `<div class="table-scroll"><table><thead><tr>${
 const heading = (eyebrow, name, text) => `<div class="page-heading"><div><span class="eyebrow">${esc(eyebrow)}</span><h1>${esc(name)}</h1><p>${esc(text)}</p></div></div>`;
 const empty = text => `<div class="card empty">${esc(text)}</div>`;
 const metric = (name,value) => `<div class="metric"><span>${esc(name)}</span><strong>${esc(value)}</strong></div>`;
+const pokemonCost = p => Math.ceil(stats.reduce((sum,s)=>sum+p[s],0)/100);
+const draftCost = () => state.draft.members.reduce((sum,m)=>sum+pokemonCost(m.pokemon),0);
+const REWARD_COLORS = {common:'#a9bbd0',uncommon:'#65ca8c',rare:'#b794ff',legendary:'#ffd447'};
+const revealedRewards = new Set();
+let rewardSpin = null;
+
+function rewardKey(battle) {return `pokedb:reward:${battle.trainer_id}:${battle._id}`;}
+function rewardWasRevealed(battle) {
+  const key=rewardKey(battle);
+  try {return revealedRewards.has(key)||localStorage.getItem(key)==='revealed';}
+  catch {return revealedRewards.has(key);}
+}
+function cancelRewardSpin() {
+  const spin=rewardSpin;rewardSpin=null;
+  if(spin?.animation)spin.animation.cancel();
+}
+function rewardCase(battle) {
+  const reward=battle.reward,revealed=rewardWasRevealed(battle);
+  return `<section class="reward-case" data-battle="${esc(battle._id)}" style="--reward-color:${REWARD_COLORS[reward.rarity]||REWARD_COLORS.common}">
+    <span class="eyebrow">VICTORY DROP</span>
+    <div class="case-sealed" ${revealed?'hidden':''}><div class="case-ball" aria-hidden="true"></div><h3>A new partner is inside.</h3><p>One victory. One Pokémon. Open your reward case.</p>${button('Open reward case','open-reward','','primary')}</div>
+    <div class="case-opening" hidden><h3>Finding your next partner…</h3><div class="case-window" aria-hidden="true"><div class="case-reel"></div><span class="case-pointer"></span></div><p class="case-status" role="status">Opening your case…</p>${button('Skip animation','skip-reward','','case-skip')}</div>
+    <div class="case-revealed" ${revealed?'':'hidden'}><div class="case-burst" aria-hidden="true">✦ <span>✧</span> ✦</div><span class="case-rarity">${esc(reward.rarity)} partner</span><div class="reward">${img({id:reward.pokemon_id,name:reward.name})}<div><h3 class="reward-name" tabindex="-1">${esc(title(reward.name))}</h3><p class="case-delivery">${reward.delivered?'Added to your collection.':'Reward delivery pending; reopen this battle from history to retry.'}</p></div></div></div>
+    <p class="case-odds">Common 60% · Uncommon 25% · Rare 12% · Legendary/Mythical 3%</p>
+  </section>`;
+}
+function finishRewardCase() {
+  const spin=rewardSpin;if(!spin)return;
+  rewardSpin=null;
+  spin.animation?.cancel();
+  if(!spin.element.isConnected)return;
+  revealedRewards.add(rewardKey(spin.battle));
+  try {localStorage.setItem(rewardKey(spin.battle),'revealed');} catch { /* In-memory reveal still works. */ }
+  spin.element.querySelector('.case-sealed').hidden=true;
+  spin.element.querySelector('.case-opening').hidden=true;
+  const revealed=spin.element.querySelector('.case-revealed');revealed.hidden=false;
+  revealed.setAttribute('role','status');
+  revealed.querySelector('.reward-name').focus({preventScroll:true});
+}
+async function openRewardCase() {
+  const battle=state.battle,element=document.querySelector('.reward-case');
+  if(!element||battle?.status!=='win'||!battle.reward||rewardSpin||rewardWasRevealed(battle))return;
+  const spin={battle,element,animation:null};rewardSpin=spin;
+  element.querySelector('.case-sealed').hidden=true;
+  element.querySelector('.case-opening').hidden=false;
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){finishRewardCase();return;}
+  let pool=[];
+  try {pool=(await api('/pokemon')).pokemon;} catch { /* Reveal still works when catalogue loading fails. */ }
+  if(rewardSpin!==spin||!element.isConnected)return;
+  const reel=element.querySelector('.case-reel'),viewport=element.querySelector('.case-window');
+  const winnerIndex=28;
+  const cards=Array.from({length:34},()=>pool.length?pool[Math.floor(Math.random()*pool.length)]:null);
+  // The winner always comes from the persisted server reward. Other cards are decorative.
+  cards[winnerIndex]={id:battle.reward.pokemon_id,name:battle.reward.name,rarity:battle.reward.rarity};
+  reel.innerHTML=cards.map((p,i)=>`<div class="case-card" ${i===winnerIndex?'data-winner="true"':''} style="--card-color:${REWARD_COLORS[p?.rarity]||REWARD_COLORS.common}">${p?img(p):'<span class="ball" aria-hidden="true"></span>'}<strong>${p?esc(title(p.name)):'Mystery partner'}</strong><small>${p?esc(p.rarity):'Pokémon'}</small></div>`).join('');
+  // Make later sprites load before entering the viewport during the animation.
+  reel.querySelectorAll('img').forEach(image=>{image.loading='eager';});
+  const winner=reel.children[winnerIndex];
+  const start=viewport.clientWidth/2-reel.children[0].offsetWidth/2;
+  const end=viewport.clientWidth/2-winner.offsetLeft-winner.offsetWidth/2;
+  if(typeof reel.animate!=='function'){finishRewardCase();return;}
+  spin.animation=reel.animate([{transform:`translateX(${start}px)`},{transform:`translateX(${end}px)`}],
+    {duration:4600,easing:'cubic-bezier(.12,.72,.12,1)',fill:'forwards'});
+  spin.animation.finished.then(()=>{if(rewardSpin===spin)finishRewardCase();}).catch(()=>{});
+  element.querySelector('[data-action="skip-reward"]').focus({preventScroll:true});
+}
 
 async function api(path, method='GET', body) {
   const response = await fetch(`/api${path}`, {method, headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf}, body:body===undefined?undefined:JSON.stringify(body)});
@@ -51,6 +117,7 @@ function needTrainer() {
   return false;
 }
 async function navigate(view) {
+  cancelRewardSpin();
   state.view=view;location.hash=view;
   document.querySelectorAll('[data-nav]').forEach(b=>{b.classList.toggle('active',b.dataset.nav===view);b.setAttribute('aria-current',b.dataset.nav===view?'page':'false');});
   if(view!=='pokedex' && needTrainer())return;
@@ -80,11 +147,13 @@ async function renderTeams() {
 }
 function drawTeams() {
   const draft=state.draft;
+  const cost=draftCost();
   main.innerHTML=heading('BUILD SOMETHING YOURS','Collection & teams','Choose up to six partners, then pick four moves for each.')+
+    `<section class="card spacer" aria-live="polite"><strong class="${cost>30?'weak':''}">Team budget: ${cost} / 30 points · ${30-cost} remaining</strong><p class="note">Each Pokémon costs its total base stats divided by 100, rounded up. ${cost>30?'Remove or replace a member before saving or starting a new battle.':'Save your team to apply changes.'}</p></section>`+
     `<div class="toolbar"><label>Saved teams<select id="team-select"><option value="">New team</option>${state.teams.map(t=>`<option value="${t.id}" ${draft.id===t.id?'selected':''}>${esc(t.name)} · ${t.size}/6</option>`).join('')}</select></label>${button('New team','new-team')}${draft.id?button('Delete team','delete-team',draft.id,'danger'):''}<span class="count">${state.collection.length} Pokémon in your collection</span></div>
     <div class="two-col"><section><form id="team-form"><div class="form-row card"><label>Team name<input id="team-name" value="${esc(draft.name)}" maxlength="60" required></label><button class="primary">Save team</button></div><div class="section-title"><h3>Active roster</h3><small>${draft.members.length} / 6 Pokémon</small></div>
-    <div class="stack">${draft.members.length?draft.members.map((m,i)=>`<article class="member">${img(m.pokemon)}<div><div class="row between"><h3>${esc(title(m.pokemon.name))}</h3><div>${i?button('↑','move-up',i,'quiet small'):''}${button('Remove','remove-member',i,'quiet small')}</div></div>${tags(m.pokemon.types)}<div class="move-picks">${[0,1,2,3].map(slot=>`<label>Move ${slot+1}<select data-member="${i}" data-slot="${slot}">${m.pokemon.moves.map(move=>`<option value="${move.id}" ${move.id===m.moves[slot]?'selected':''}>${esc(title(move.name))} · ${move.type} · ${move.power} power${move.source==='project_override'?' ★':''}</option>`).join('')}</select></label>`).join('')}</div></div></article>`).join(''):empty('Add Pokémon from your collection to get started.')}</div></form><p class="note">Choose four distinct moves. ★ denotes a project-specific exception. Save your team before analysing it or starting a battle.</p></section>
-    <aside class="card"><h3>Your collection</h3><p class="note">Win battles to meet new partners. Duplicate species are separate owned Pokémon.</p><div class="collection-list">${state.collection.map(o=>`<div class="owned">${img(o.pokemon)}<div class="meta"><h4>${esc(title(o.pokemon.name))}</h4><small>#${o.owned_id} · ${o.pokemon.rarity}</small></div><button class="quiet small" data-action="add-member" data-value="${o.owned_id}" ${draft.members.some(m=>m.owned_id===o.owned_id)||draft.members.length>=6?'disabled':''}>Add</button></div>`).join('')}</div></aside></div>`;
+    <div class="stack">${draft.members.length?draft.members.map((m,i)=>`<article class="member">${img(m.pokemon)}<div><div class="row between"><h3>${esc(title(m.pokemon.name))} ? ${pokemonCost(m.pokemon)} pts</h3><div>${i?button('↑','move-up',i,'quiet small'):''}${button('Remove','remove-member',i,'quiet small')}</div></div>${tags(m.pokemon.types)}<div class="move-picks">${[0,1,2,3].map(slot=>`<label>Move ${slot+1}<select data-member="${i}" data-slot="${slot}">${m.pokemon.moves.map(move=>`<option value="${move.id}" ${move.id===m.moves[slot]?'selected':''}>${esc(title(move.name))} · ${move.type} · ${move.power} power${move.source==='project_override'?' ★':''}</option>`).join('')}</select></label>`).join('')}</div></div></article>`).join(''):empty('Add Pokémon from your collection to get started.')}</div></form><p class="note">Choose four distinct moves. ★ denotes a project-specific exception. Save your team before analysing it or starting a battle.</p></section>
+    <aside class="card"><h3>Your collection</h3><p class="note">Win battles to meet new partners. Duplicate species are separate owned Pokémon. Costs are shown in points.</p><div class="collection-list">${state.collection.map(o=>`<div class="owned">${img(o.pokemon)}<div class="meta"><h4>${esc(title(o.pokemon.name))} · ${pokemonCost(o.pokemon)} pts</h4><small>#${o.owned_id} · ${o.pokemon.rarity}</small></div><button class="quiet small" data-action="add-member" data-value="${o.owned_id}" ${draft.members.some(m=>m.owned_id===o.owned_id)||draft.members.length>=6||cost+pokemonCost(o.pokemon)>30?'disabled':''}>Add</button></div>`).join('')}</div></aside></div>`;
 }
 function rememberName(){const input=document.querySelector('#team-name');if(input&&state.draft)state.draft.name=input.value;}
 function teamOptions(chosen) {return state.teams.map(t=>`<option value="${t.id}" ${t.id===Number(chosen)?'selected':''}>${esc(t.name)} · ${t.size}/6</option>`).join('');}
@@ -92,12 +161,21 @@ async function renderAnalysis(teamId) {
   await loadTeams();
   if(!state.teams.length){main.innerHTML=heading('KNOW YOUR STRENGTHS','Team analysis','Save a team to see its strengths and weaknesses.')+button('Build a team','go-teams','','primary');return;}
   teamId=teamId || state.teams[0].id;
-  const a=await api(`/teams/${teamId}/analysis`);
+  const [a,r]=await Promise.all([api(`/teams/${teamId}/analysis`),api(`/teams/${teamId}/recommendations`)]);
   main.innerHTML=heading('KNOW YOUR STRENGTHS','Team analysis','Understand your roster before stepping into the arena.')+`<div class="toolbar"><label>Team<select id="analysis-team">${teamOptions(teamId)}</select></label></div>
     <div class="metric-grid">${metric('Team size',a.stats.size)}${metric('Total base stats',stats.reduce((sum,s)=>sum+a.stats['total_'+s],0))}${metric('Average Speed',a.stats.average_speed.toFixed(1))}${metric('Types represented',a.distribution.length)}</div>
     <div class="two-col"><section class="card"><h3>Defensive matchups</h3><p class="note">Number of members weak, resistant or immune to each attacking type. Both defensive types are combined.</p>${table(['Attacking type','Weak','Resistant','Immune'],a.matchups.map(r=>[tags([r.type]),`<span class="${r.weak?'weak':''}">${r.weak}</span>`,r.resistant,r.immune]))}</section>
     <div class="stack"><section class="card"><h3>Team statistics</h3>${table(['Stat','Total','Average'],stats.map(s=>[statLabel(s),a.stats['total_'+s],a.stats['average_'+s].toFixed(1)]))}</section><section class="card"><h3>Type distribution</h3>${a.distribution.length?table(['Type','Members'],a.distribution.map(t=>[tags([t.name]),t.count])):'No members yet.'}</section></div></div>
-    <section class="card spacer"><h3>Offensive coverage</h3><p class="note">Best multiplier available from your selected moves against each single defending type. This is coverage, not a prediction of victory.</p><div class="tags">${a.coverage.map(c=>`<span class="type ${c.best_multiplier>1?'grass':''}">${c.type} · ${c.best_multiplier}×</span>`).join('')}</div></section>`;
+    <section class="card spacer"><h3>Offensive coverage</h3><p class="note">Best multiplier available from your selected moves against each single defending type. This is coverage, not a prediction of victory.</p><div class="tags">${a.coverage.map(c=>`<span class="type ${c.best_multiplier>1?'grass':''}">${c.type} · ${c.best_multiplier}×</span>`).join('')}</div></section>
+    <section class="card spacer" id="recommendations"><h3>Recommended partners</h3><p>Team budget: ${a.budget.total} / ${a.budget.limit} points.</p><p class="note">${esc(r.note)} Defensive exposure averages weakness multipliers above 1 across members and all attacking types; lower is better.</p>
+    ${r.suggestions.length?r.suggestions.map(s=>{const h=r.history.find(h=>h._id===s.pokemon_id);return `<article class="rules spacer"><h4>${s.replace_owned_id?`Replace ${esc(title(s.replace_name))} (#${s.replace_owned_id}) with`:'Consider adding'} ${esc(title(s.name))} (#${s.owned_id})</h4><p>${esc(s.reason)}</p><p class="note">Cost ${s.cost} points · proposed team ${s.budget.total} / ${s.budget.limit}. Suggested moves: ${s.suggested_moves.map(m=>esc(title(m.name))).join(', ')}.</p><p class="note">${h?`${h.battles} prior battles containing this species: ${h.wins} wins, ${h.losses} losses, ${h.draws} draws. Team results across different matchups; forfeits excluded.`:'No prior battle evidence for this species under the current rules.'}</p></article>`;}).join(''):'<p>No qualifying addition or replacement in your collection. Collect more Pokémon or review your selected moves.</p>'}
+    ${button('Review this team','edit-team',teamId)}</section>`;
+}
+function predictionPanel(b) {
+  const p=b.prediction;
+  if(!p)return '<section class="card"><h3>Pre-battle prediction</h3><p class="note">This older battle has no saved prediction.</p></section>';
+  const h=p.history;
+  return `<section class="card" id="prediction"><h3>Pre-battle prediction: ${esc(title(p.label))}</h3><p class="note">Saved before the first turn; this assessment stays fixed.</p><ul>${p.reasons.map(reason=>`<li>${esc(reason)}</li>`).join('')}</ul><p class="note">${esc(p.note)}</p><p>${h.battles} prior comparable battles: ${h.wins} wins, ${h.losses} losses, ${h.draws} draws.</p><p class="note">${esc(h.note)} ${h.battles<10?'Historical evidence is limited.':''}</p>${b.budget?`<p class="note">Starting team cost: ${b.budget.total} / ${b.budget.limit} points.</p>`:''}</section>`;
 }
 const rules = (version='prototype-2') => `<details class="rules spacer"><summary>How this battle works</summary><p>Choose a move each turn. Priority and Speed determine which attack happens first. Each move uses PP; when all PP runs out, Fallback Strike deals neutral damage and causes recoil. Switching uses a turn, while replacing a fainted Pokémon is free.</p><p>All moves use simplified single-hit damage. No status effects, abilities, items or critical hits. HP and PP reset each battle. ${version==='prototype-1'?'This saved battle uses the original uncapped damage rules.':'Each hit deals at most 40% of the target’s maximum HP, giving healthy Pokémon time to respond. Already weakened Pokémon can still faint.'} A draw occurs after 200 turns. Your opponent never sees your next selected action.</p></details>`;
 async function renderBattle() {
@@ -118,14 +196,15 @@ function eventText(e) {
   return 'You forfeited the battle.';
 }
 function drawBattle() {
+  cancelRewardSpin();
   const b=state.battle,p=b.player.members[b.player.active],active=b.status==='active';
   const exhausted=p.moves.every(m=>m.remaining_pp===0);
   const choices=exhausted?[{id:0,name:'fallback-strike',type:'neutral',remaining_pp:'∞',power:50}]:p.moves;
   main.innerHTML=heading('THE BATTLE IS YOURS','Battle arena',`${title(b.difficulty)} difficulty · ${b.team_name}`)+
     `<div class="two-col"><section><div class="arena"><div class="arena-header"><span>${b.status==='active'?'LIVE BATTLE':b.status.toUpperCase()}</span><span>${b.rules_version==='prototype-1'?'V1':'V2'} · TURN ${b.turn_count}</span></div><div class="fighters">${fighter(b.player,'YOUR PARTNER',true)}<div class="versus">VS</div>${fighter(b.opponent,'OPPONENT',false)}</div></div>
     ${active?`<h3 class="spacer">${p.hp<=0?'Choose a healthy replacement.':'What will you do?'}</h3><div class="actions">${choices.map(m=>`<button class="move-button" style="--type-color:${typeColor(m.type)}" data-action="attack" data-value="${m.id}" ${p.hp<=0||m.remaining_pp===0?'disabled':''}><strong>${esc(title(m.name))}</strong><div class="row">${tags([m.type])}<small>${m.power} power · ${m.remaining_pp} PP</small></div></button>`).join('')}</div><div class="section-title"><h4>Switch Pokémon</h4><small>${p.hp<=0?'Free replacement':'Uses your turn'}</small></div><div class="row">${b.player.members.map((m,i)=>`<button class="quiet small" data-action="switch" data-value="${i}" ${m.hp<=0||i===b.player.active?'disabled':''}>${esc(title(m.name))} · ${m.hp} HP</button>`).join('')}</div><div class="spacer">${button('Forfeit battle','forfeit','','danger small')}</div>`:
-    `<section class="result"><h2>${b.status==='win'?'Victory. A new partner awaits!':b.status==='loss'?'A lesson for the next battle.':'An evenly matched battle.'}</h2>${b.reward?`<div class="reward">${img({id:b.reward.pokemon_id,name:b.reward.name})}<div><span class="badge">${b.reward.rarity}</span><h3>${esc(title(b.reward.name))}</h3><small>${b.reward.delivered?'Added to your collection.':'Reward delivery pending; reopen this battle to retry.'}</small></div></div>`:`<p class="note">${b.turn_count} turns played. Adjust your team or try another difficulty.</p>`}<div class="row spacer">${button('Battle again','new-battle','','primary')}${button('View collection','go-teams')}</div></section>`}${rules(b.rules_version)}</section>
-    <aside class="stack"><section class="card"><h3>Battle log</h3><ol class="battle-log">${b.turns.length?b.turns.slice().reverse().map(t=>`<li><span class="turn-label">${t.kind==='turn'?'TURN '+t.number:title(t.kind).toUpperCase()}</span><br>${t.events.map(e=>esc(eventText(e))).join('<br>')}</li>`).join(''):'<li>Your opponent is ready. Choose your first move.</li>'}</ol></section><section class="card"><h4>Opponent matching</h4><p class="note">Your strength: ${b.generation.player_strength}<br>Target: ${Math.round(b.generation.target_strength)}<br>Opponent strength: ${b.generation.actual_strength}</p><small>Strength = total base stats across the team.</small></section></aside></div>`;
+    `<section class="result"><h2>${b.status==='win'?'Victory. A new partner awaits!':b.status==='loss'?'A lesson for the next battle.':'An evenly matched battle.'}</h2>${b.status==='win'&&b.reward?rewardCase(b):`<p class="note">${b.turn_count} turns played. Adjust your team or try another difficulty.</p>`}<div class="row spacer">${button('Battle again','new-battle','','primary')}${button('View collection','go-teams')}</div></section>`}${rules(b.rules_version)}</section>
+    <aside class="stack">${predictionPanel(b)}<section class="card"><h3>Battle log</h3><ol class="battle-log">${b.turns.length?b.turns.slice().reverse().map(t=>`<li><span class="turn-label">${t.kind==='turn'?'TURN '+t.number:title(t.kind).toUpperCase()}</span><br>${t.events.map(e=>esc(eventText(e))).join('<br>')}</li>`).join(''):'<li>Your opponent is ready. Choose your first move.</li>'}</ol></section><section class="card"><h4>Opponent matching</h4><p class="note">Your strength: ${b.generation.player_strength}<br>Target: ${Math.round(b.generation.target_strength)}<br>Opponent strength: ${b.generation.actual_strength}</p><small>Strength = total base stats across the team.</small></section></aside></div>`;
 }
 async function renderAnalytics() {
   const [a,h]=await Promise.all([api('/analytics'),api('/battles')]);const s=a.summary;
@@ -134,16 +213,28 @@ async function renderAnalytics() {
     <p class="note">Win rate = wins ÷ all completed battles, including draws and forfeits. Duration includes thinking time. Active battles are excluded.</p>
     <div class="two-col"><section class="card"><h3>Results by difficulty</h3>${a.difficulty.length?table(['Difficulty','Wins','Losses','Draws','Battles'],a.difficulty.map(d=>[esc(d._id),d.wins,d.losses,d.draws,d.battles])):empty('Finish your first battle to see results.')}</section><section class="card"><h3>Most-used moves</h3>${a.moves.length?table(['Move','Uses'],a.moves.map(m=>[esc(title(m.name)),m.uses])):'<p class="note">Your executed moves will appear here, including misses.</p>'}</section></div>
     <section class="card spacer"><h3>Pokémon performance</h3><p class="note">Appearances count completed battles containing the species, once per battle. Win rate describes the team result, not individual knockouts.</p>${a.pokemon.length?table(['Pokémon','Appearances','Wins','Win rate'],a.pokemon.map(p=>[esc(title(p.name)),p.appearances,p.wins,(p.wins/p.appearances*100).toFixed(1)+'%'])):empty('No completed battles yet.')}</section>
+    <section class="card spacer" id="prediction-results"><h3>Predictions and actual outcomes</h3><p class="note">Saved predictions only; active battles and forfeits excluded. Favoured + win and disadvantaged + loss count as correct directional calls. Draws and evenly matched labels are shown separately. These results do not establish a calibrated win probability.</p>${predictionResults(a.predictions)}</section>
     <section class="card spacer"><h3>Battle history</h3><p class="note">Your latest 50 battles. Open an active battle to resume it.</p>${h.battles.length?table(['Team','Difficulty','Result','Turns','Started',''],h.battles.map(b=>[esc(b.team_name),esc(b.difficulty),`<span class="badge">${b.status}</span>`,b.turn_count,esc(new Date(b.started_at).toLocaleString()),button(b.status==='active'?'Resume':'Review','review-battle',b._id,'quiet small')])):empty('Your first battle starts a new chapter.')}</section>`;
 }
+function predictionResults(rows) {
+  if(!rows.length)return '<p>No completed battles with predictions yet.</p>';
+  return table(['Method / rules','Prediction','Wins','Losses','Draws','Sample','Correct directional calls'],Object.values(rows.reduce((groups,r)=>{
+    const key=JSON.stringify([r._id.method,r._id.rules,r._id.label]);
+    const g=groups[key] ||= {method:r._id.method,rules:r._id.rules,label:r._id.label,win:0,loss:0,draw:0};
+    g[r._id.outcome]+=r.battles;return groups;
+  },{})).map(g=>[esc(g.method+' / '+g.rules),esc(g.label),g.win,g.loss,g.draw,g.win+g.loss+g.draw,g.label==='evenly matched'?'Assessed separately':`${g.label==='favoured'?g.win:g.loss} / ${g.win+g.loss} decisive battles`]));
+}
 async function perform(action,value) {
-  if(action==='profiles'){await refreshSession();profilesModal();}
+  if(action==='open-reward')await openRewardCase();
+  else if(action==='skip-reward')finishRewardCase();
+  else if(action==='profiles'){await refreshSession();profilesModal();}
   else if(action==='close-dialog')dialog.close();
   else if(action==='starters')startersModal();
   else if(action==='select-profile'){await api('/profiles/select','POST',{id:Number(value)});state.draft=null;state.battle=null;await refreshSession();dialog.close();await navigate(state.view);if(!state.trainer.starter_chosen)startersModal();}
   else if(action==='starter'){await api('/starter','POST',{pokemon_id:Number(value)});await refreshSession();dialog.close();state.draft=null;await navigate('teams');}
   else if(action==='pokemon')await pokemonModal(value);
   else if(action==='go-teams'){state.draft=null;await navigate('teams');}
+  else if(action==='edit-team'){state.draft=await api(`/teams/${value}`);await navigate('teams');}
   else if(action==='new-team'){state.draft={name:'My new team',members:[]};drawTeams();}
   else if(action==='delete-team'){if(confirm('Delete this saved team? Your collection and battle history will remain.')){await api(`/teams/${value}`,'DELETE');state.draft=null;await renderTeams();}}
   else if(action==='add-member'){

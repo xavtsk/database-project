@@ -1,12 +1,12 @@
 # Application architecture
 
-The five core features share an application backend that reads structured data from MariaDB and stores battle history in MongoDB. The frontend accesses both databases through the backend.
+The five core features share an application backend that reads structured data from MySQL and stores battle history in MongoDB. The frontend accesses both databases through the backend.
 
 ```mermaid
 flowchart TD
     API[PokéAPI] --> RAW["Raw JSON cache: data/raw/"]
     RAW --> PROCESS[Data processing]
-    PROCESS --> SQL["MariaDB: Pokémon, types, moves, trainers, owned Pokémon and teams"]
+    PROCESS --> SQL["MySQL: Pokémon, types, moves, trainers, owned Pokémon and teams"]
     UI[Browser frontend] <--> APP[Application backend]
     SQL <--> APP
     APP --> DEX[Pokédex]
@@ -25,7 +25,7 @@ Solid arrows describe the current prototype. Dashed arrows show proposed progres
 
 ## Planned progression
 
-EXP and levels would belong to each owned Pokémon, allowing two trainers' Charmanders to progress independently. Species data and evolution rules would describe the shared catalogue. Battle progression would be validated and saved to MariaDB by the backend; battle events and outcomes would remain in MongoDB for analytics.
+EXP and levels would belong to each owned Pokémon, allowing two trainers' Charmanders to progress independently. Species data and evolution rules would describe the shared catalogue. Battle progression would be validated and saved to MySQL by the backend; battle events and outcomes would remain in MongoDB for analytics.
 
 Evolution rules, EXP awards, level thresholds and the corresponding schema changes still require design before implementation. This diagram does not define a final progression schema or change the current battle mechanics.
 

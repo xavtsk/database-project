@@ -40,12 +40,15 @@ def main():
                             "--bind_ip", "127.0.0.1", "--port", "27017", "--fork"], check=True)
     from backend.app import create_app
     from backend.db import query
-    app = create_app()
     try:
+        app = create_app()
         query("SELECT id FROM pokemon LIMIT 1")
         app.extensions["mongo"].admin.command("ping")
+    except RuntimeError as error:
+        raise SystemExit(str(error)) from error
     except Exception:
-        raise SystemExit("Databases are not ready. Follow README.md: configure .env, start MariaDB/MongoDB and run scripts.setup_databases.")
+        raise SystemExit("Databases are not ready. Follow README.md: configure .env, start MySQL Server/MongoDB "
+                         "and run python -m scripts.setup_databases. Check SQL_PORT (local MySQL: 3307) and your project-account credentials.")
     app.run(host="127.0.0.1", port=int(os.getenv("PORT", "5050")), debug=False)
 
 

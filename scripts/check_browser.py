@@ -43,8 +43,10 @@ def check():
         page.get_by_role("button", name="Create trainer").click(); ready()
         page.locator('[data-action="starter"][data-value="7"]').click(); ready()
         assert page.locator(".member").count() == 1
+        assert "Team budget: 4 / 30" in page.locator("#main").inner_text()
         nav("analysis")
         assert page.locator(".metric").count() == 4
+        assert page.locator("#recommendations").count() == 1
 
         wins = 0
         for difficulty in ("easy", "medium", "hard", "easy", "easy"):
@@ -55,8 +57,11 @@ def check():
             page.locator(f'[name="difficulty"][value="{difficulty}"]').check()
             page.get_by_role("button", name="Start battle").click(); ready()
             assert page.locator(".arena").count() == 1
+            prediction=page.locator("#prediction").inner_text()
+            assert "not a win probability" in prediction
             page.reload(wait_until="networkidle"); ready()
             assert page.locator(".arena").count() == 1
+            assert page.locator("#prediction").inner_text() == prediction
             switches = page.locator('[data-action="switch"]:not([disabled])')
             if switches.count():
                 switches.first.click(); ready()
@@ -74,6 +79,13 @@ def check():
             wins += victory
             print(difficulty, page.locator(".result h2").inner_text(), flush=True)
             if victory:
+                opener=page.get_by_role("button",name="Open reward case",exact=True)
+                if opener.is_visible():
+                    opener.click(); ready()
+                    skip=page.get_by_role("button",name="Skip animation",exact=True)
+                    if skip.is_visible():
+                        skip.click(); ready()
+                page.locator('.case-revealed').wait_for(state='visible')
                 assert "Added to your collection" in page.locator(".reward").inner_text()
                 nav("teams")
                 available = page.locator('[data-action="add-member"]:not([disabled])')

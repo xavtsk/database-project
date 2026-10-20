@@ -13,7 +13,34 @@
       "initial": {"bsonType": "object"},
       "player": {"bsonType": "object"},
       "opponent": {"bsonType": "object"},
-      "turns": {"bsonType": "array"}
+      "turns": {"bsonType": "array"},
+      "budget": {
+        "bsonType": "object",
+        "required": ["version", "limit", "total", "costs", "remaining", "within_budget"],
+        "properties": {
+          "version": {"bsonType": "string"},
+          "limit": {"bsonType": "int", "minimum": 1},
+          "total": {"bsonType": "int", "minimum": 0},
+          "costs": {"bsonType": "array", "items": {"bsonType": "int", "minimum": 1}},
+          "remaining": {"bsonType": "int"},
+          "within_budget": {"bsonType": "bool"}
+        }
+      },
+      "prediction": {
+        "bsonType": "object",
+        "required": ["method", "label", "rules_version", "player_pressure", "opponent_pressure", "inputs", "reasons", "note", "history"],
+        "properties": {
+          "method": {"bsonType": "string"},
+          "rules_version": {"bsonType": "string"},
+          "label": {"enum": ["favoured", "evenly matched", "disadvantaged"]},
+          "player_pressure": {"bsonType": "double", "minimum": 0},
+          "opponent_pressure": {"bsonType": "double", "minimum": 0},
+          "inputs": {"bsonType": "object"},
+          "reasons": {"bsonType": "array", "items": {"bsonType": "string"}},
+          "note": {"bsonType": "string"},
+          "history": {"bsonType": "object"}
+        }
+      }
     }
   }
 }

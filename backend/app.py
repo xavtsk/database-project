@@ -7,17 +7,20 @@ from pymongo.errors import PyMongoError
 import pymysql
 
 from backend.config import ROOT
-from backend.db import mongo_client, mongo_database, query
+from backend.db import mongo_client, mongo_database, query, check_mysql
 from backend.errors import ValidationError, integer
 from backend.catalog import catalog
 from backend.pokedex import service as pokedex
 from backend.teams import service as teams
 from backend.team_analysis.service import analyse
+from backend.team_analysis.recommendations import recommend
+from backend.battles.engine import RULES_VERSION
 from backend.battles import service as battles
 from backend.analytics import service as analytics
 
 
 def create_app(test_config=None):
+    check_mysql()
     app = Flask(__name__, template_folder=str(ROOT / "frontend"), static_folder=str(ROOT / "frontend/static"))
     secret = os.getenv("FLASK_SECRET_KEY")
     if not secret:
@@ -129,6 +132,14 @@ def create_app(test_config=None):
     @app.get("/api/teams/<int:team_id>/analysis")
     def analysis(team_id):
         return jsonify(analyse(selected(), team_id))
+
+    @app.get("/api/teams/<int:team_id>/recommendations")
+    def recommendations(team_id):
+        trainer_id = selected()
+        result = recommend(trainer_id, team_id)
+        result["history"] = analytics.species_evidence(logs, trainer_id, RULES_VERSION,
+                                                      [s["pokemon_id"] for s in result["suggestions"]])
+        return jsonify(result)
 
     @app.get("/api/battles")
     def battle_history():

@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def sql_options(database=True):
     options = dict(
         host=os.getenv("SQL_HOST", "127.0.0.1"),
-        port=int(os.getenv("SQL_PORT", "3306")),
+        port=int(os.getenv("SQL_PORT", "3307")),
         user=os.getenv("SQL_USER", "pokedex"),
         password=os.getenv("SQL_PASSWORD", ""),
         charset="utf8mb4", connect_timeout=5,

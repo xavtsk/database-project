@@ -2,6 +2,7 @@
 from backend.catalog import catalog
 from backend.db import query, transaction
 from backend.errors import ValidationError, integer, text_name
+from backend.teams.budget import team_budget, validate_budget
 
 
 def profiles():
@@ -69,6 +70,7 @@ def get_team(trainer_id, team_id):
         selections = cursor.fetchall()
     team["members"] = [dict(m, pokemon=catalog()[0][m["pokemon_id"]],
                             moves=[s["move_id"] for s in selections if s["member_slot"] == m["slot"]]) for m in members]
+    team["budget"] = team_budget(m["pokemon"] for m in team["members"])
     return team
 
 
@@ -98,6 +100,7 @@ def save_team(trainer_id, name, members, team_id=None):
             allowed = {m["id"] for m in catalog()[0][owned[member["owned_id"]]]["moves"]}
             if not set(move_ids) <= allowed:
                 raise ValidationError("A selected move is not in this Pokémon's fixed move pool")
+        validate_budget(catalog()[0][owned[m["owned_id"]]] for m in members)
         if team_id is None:
             cursor.execute("INSERT INTO teams(trainer_id,name) VALUES (%s,%s)", (trainer_id, name))
             team_id = cursor.lastrowid

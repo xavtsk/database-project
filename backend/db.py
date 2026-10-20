@@ -1,11 +1,36 @@
 """Small explicit SQL transaction helpers and a shared MongoDB client."""
 from contextlib import contextmanager
 import os
+import re
 
 import pymysql
 from pymongo import MongoClient
 
 from backend.config import sql_options
+
+
+def validate_mysql_server(version, edition):
+    """Reject the wrong service before setup writes any schema or catalogue data."""
+    if "mariadb" in (version + " " + edition).lower():
+        raise RuntimeError("This project now uses MySQL Server. The configured SQL_HOST/SQL_PORT points to MariaDB. "
+                           "Connect to your MySQL service instead (the local setup uses port 3307).")
+    match = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
+    if not match or tuple(map(int, match.groups())) < (8, 0, 19) or "mysql" not in edition.lower():
+        raise RuntimeError("MySQL Server 8.0.19 or newer is required; MySQL 8.4 LTS is recommended.")
+    return dict(version=version, edition=edition)
+
+
+def require_mysql(connection):
+    with connection.cursor(pymysql.cursors.DictCursor) as cursor:
+        cursor.execute("SELECT VERSION() AS version, @@version_comment AS edition")
+        info = cursor.fetchone()
+    return validate_mysql_server(info["version"], info["edition"])
+
+
+def check_mysql():
+    # No database selection: this also works before the schema has been created.
+    with pymysql.connect(**sql_options(database=False)) as connection:
+        return require_mysql(connection)
 
 
 @contextmanager
