@@ -16,6 +16,7 @@ from backend.db import mongo_client, mongo_database, require_mysql
 from scripts.data_import.fetch_pokeapi import RawDownloader
 from scripts.data_import.audit_game_data import stage, write_report, REPORT
 from scripts.data_import.import_historical import initialize as initialize_historical
+from scripts.migrate_collection_rewards import apply as migrate_collection_rewards
 
 
 def setup(fetch_dark=False, sql_only=False):
@@ -37,6 +38,7 @@ def setup(fetch_dark=False, sql_only=False):
             for statement in (ROOT / "database/relational/schema.sql").read_text().split(";"):
                 if statement.strip():
                     cursor.execute(statement)
+            migrate_collection_rewards(cursor)
             for statement in (ROOT / "database/relational/views.sql").read_text(encoding="utf-8").split(";"):
                 if statement.strip():
                     cursor.execute(statement)

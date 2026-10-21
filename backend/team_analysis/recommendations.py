@@ -6,6 +6,7 @@ from backend.catalog import catalog, effectiveness
 from backend.db import query
 from backend.teams.budget import team_budget, pokemon_cost, LIMIT
 from backend.teams.service import default_moves, get_team
+from backend.teams.limits import legendary_duplicates
 
 RECOMMENDATION_SQL = (ROOT / "database/relational/queries/team_recommendations.sql").read_text(encoding="utf-8")
 
@@ -37,6 +38,8 @@ def rank_candidates(members, candidates):
                 proposed.append(proposed_member)
             else:
                 proposed[outgoing] = proposed_member
+            if legendary_duplicates(m["pokemon"] for m in proposed):
+                continue
             budget = team_budget(m["pokemon"] for m in proposed)
             if not budget["within_budget"]:
                 continue

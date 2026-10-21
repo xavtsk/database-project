@@ -38,9 +38,10 @@ baseline_attack_score AS (
     FROM baseline_coverage
 ),
 candidates AS (
-    SELECT o.id AS owned_id,o.pokemon_id,pc.name,pc.cost
+    SELECT o.id AS owned_id,o.pokemon_id,pc.name,pc.cost,p.rarity
     FROM settings s JOIN owned_pokemon o ON o.trainer_id=s.trainer_id
     JOIN v_pokemon_cost pc ON pc.pokemon_id=o.pokemon_id
+    JOIN pokemon p ON p.id=o.pokemon_id
     WHERE NOT EXISTS (SELECT 1 FROM roster r WHERE r.owned_id=o.id)
 ),
 plans AS (
@@ -49,7 +50,15 @@ plans AS (
            CASE WHEN b.team_size=6 THEN 6 ELSE b.team_size+1 END AS proposed_size
     FROM candidates c CROSS JOIN baseline b LEFT JOIN roster r ON b.team_size=6
 ),
-affordable AS (SELECT p.* FROM plans p CROSS JOIN settings s WHERE p.proposed_cost<=s.point_limit),
+affordable AS (
+    SELECT p.* FROM plans p CROSS JOIN settings s WHERE p.proposed_cost<=s.point_limit
+    AND NOT EXISTS (
+        SELECT 1 FROM roster r JOIN pokemon rp ON rp.id=r.pokemon_id
+        WHERE rp.rarity='legendary' AND (p.replace_owned_id IS NULL OR r.owned_id<>p.replace_owned_id)
+        GROUP BY r.pokemon_id
+        HAVING COUNT(*)+(r.pokemon_id=p.pokemon_id AND p.rarity='legendary')>1
+    )
+),
 plan_defense AS (
     SELECT p.owned_id,p.replace_owned_id,w.name,
            (w.exposure_sum+GREATEST(d.multiplier-1,0)-COALESCE(GREATEST(old.multiplier-1,0),0))

@@ -32,19 +32,31 @@ If no move has PP, Fallback Strike is available: neutral 50-power physical damag
 
 All opponents defeated is a win; all player members defeated is a loss. Simultaneous defeat or 200 completed turns is a draw. Forfeiting is a loss. Only wins grant rewards. HP/PP reset each battle.
 
+## Optional player automation and animation
+
+The user approved adding Auto Battle and animations on 21 October 2026. Auto Battle uses policy `expected-damage-1` to choose one player action per request through the existing action endpoint. It chooses the available move with the highest estimated accuracy-adjusted damage under the saved rules, or a healthy replacement after fainting. Manual attacks/switches remain available when automation is paused. See the [policy and lifecycle details](auto-battle.md).
+
+This changes the player controller, not the damage formula or battle rules version. Turn logs record `controller`, the actual chosen `action`, and, for auto decisions, `policy` and `decision`. Move events add `move_type`; switch events add the exact member `slot` for unambiguous visual playback, including duplicate species. Older logs stay readable.
+
+The browser animates only saved events: lunge, coloured projectile, HP changes, miss/immune text, recoil, fainting and switches. Animation never resolves damage or awards a reward. Reduced-motion preferences skip the movement sequence.
+
+Successful attacks show **Super effective!** for combined multipliers above 1, **Not very effective.** for multipliers between 0 and 1, and **No effect.** for immunity (0). A compact message box below the arena shows each saved event individually: player/enemy moves and damage, effectiveness or miss, fainting and switching. Floating attack labels and the saved battle log remain. The combined two-attack summary stays removed. Misses never receive an effectiveness message; ordinary 1× hits and older events without a multiplier have no extra message. Reduced-motion preferences skip movement while retaining readable event messages and log text.
+
 ## Difficulty and rewards
 
 The opponent always matches the player's team size. Generate 100 candidate teams and aim for 85%, 100% or 115% of the player's total base stats. Among candidates within 5% of the closest strength gap, Easy prefers weaker type matchups, Medium neutral matchups and Hard stronger matchups. Record the actual selected strength. This is a heuristic, not a calibrated win-rate guarantee.
 
 Easy chooses random usable moves. Medium chooses randomly half the time and otherwise maximizes expected damage. Hard maximizes expected damage, accounting for accuracy and immunity.
 
-Rewards first select a tier (Common 60%, Uncommon 25%, Rare 12%, Legendary/Mythical 3%), then a species uniformly within that tier. Duplicates become separate owned instances. Legendary/mythical flags define the top tier; other species use capture-rate bands of at least 150, 75–149, and below 75. This is a project-specific rarity mapping, separate from combat strength.
+Rewards first select a tier, then a species uniformly within that tier. Easy uses 60% common / 25% uncommon / 12% rare / 3% legendary; Medium uses 58% / 25% / 12% / 5%; Hard uses 56% / 25% / 12% / 7%. Duplicates become separate owned instances. Legendary/mythical flags define the top tier; other species use capture-rate bands of at least 150, 75–149, and below 75. This is a project-specific rarity mapping, separate from combat strength.
+
+Each new victory reward also gets an independent shiny roll: 1% on Easy, 2% on Medium and 3% on Hard, saved once. New battles snapshot their reward odds; already rolled rewards retain their results and saved odds. Non-legendary species allow six normal and six shiny owned copies separately; full reward variants are rerolled within the same tier, or among available tiers using saved weights if necessary, without changing shiny status. Legendary collection copies remain unlimited, but teams allow one of each legendary species across both variants. Shiny appearance changes no combat values. See [collection and shiny rules](collection-rewards.md).
 
 ## Persistence and analytics
 
 - One active battle per trainer, enforced with a partial unique MongoDB index.
 - Actions carry a revision. Conditional document replacement accepts at most one action for that revision.
-- The outcome and selected reward are saved to MongoDB before SQL reward delivery. A unique battle UUID in SQL and a trainer row lock make delivery retry-safe. Reopening a winning battle retries pending delivery without rerolling or awarding twice.
+- The outcome and initial selected reward are saved to MongoDB before SQL reward delivery. A full collection variant may require an eligible replacement during delivery. A unique battle UUID in SQL and a trainer row lock make delivery retry-safe: once SQL records the award, retries restore that same owned instance and shiny status.
 - Both teams' initial snapshots are immutable. Editing/deleting a saved team preserves existing battle history.
 - Win rate is wins divided by all completed battles, including draws and forfeits. Active battles are excluded.
 - Pokémon usage counts battles in which the species appeared on the player's initial team, once per species per battle. Its win rate is the team's result, not an individual knockout metric.

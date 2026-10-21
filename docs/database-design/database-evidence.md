@@ -68,7 +68,7 @@ Open **Battle analytics → Battle strategy evidence**. Select battle rules and 
 
 | Analysis | Pipeline / denominator |
 | --- | --- |
-| Damage per attempted move | `$unwind` turns/events, keep player moves, group by move ID; misses count as attempts and contribute zero damage; hit rate = hits / attempts; damage = recorded actual HP removed |
+| Damage per attempted move | `$unwind` turns/events, keep player moves, group by move ID; misses count as attempts and contribute zero damage; hit rate = hits / attempts; the UI also shows observed miss rate = 1 − hit rate; damage = recorded actual HP removed |
 | Repetition and outcomes | Group by battle/move, then battle; require at least five attempted player attacks; “high repetition” = one move accounts for at least 75%; group by difficulty, initial player-team size and repetition pattern; show wins/losses/draws and count |
 | Saved prediction outcomes | Require a saved method and known prediction label; group by method, label and actual outcome; old documents lacking predictions remain excluded |
 
@@ -78,6 +78,16 @@ Grouping by rules avoids pooling different damage caps or future mechanics. Diff
 
 Prediction evaluation distinguishes favoured-win and disadvantaged-loss directional calls from draws and evenly-matched labels. It does not establish calibrated probabilities. These filters apply to the new evidence panel; existing overall analytics keep their original definitions, including forfeits.
 
+## 4. Observed 1v1 matchups from MongoDB
+
+The visible matchup panel now uses `GET /api/analytics/matchups`, implemented in `backend/analytics/matchups.py`. The original external source remains separately queryable; it does not fill this panel. No new stored schema is introduced.
+
+The aggregation starts with `$match` on the selected trainer, exact saved rules, completed outcome and optional difficulty. It excludes both turn-level and event-level forfeits. `$expr`, `$isArray` and `$size` require exactly one member in **both initial snapshots**, with malformed/missing arrays safely excluded. A final team with one survivor is not evidence that a battle started as a 1v1.
+
+`$arrayElemAt` extracts each starting species. A pair filter accepts both orientations. `$cond` identifies whether the selected species was the player's Pokémon or the AI opponent; conditional expressions reverse wins/losses for the latter. `$facet` computes overall counts and rows grouped by difficulty and selected-species side, with `$group`/`$sum`, `$avg` turns and `$divide` win rates. Each battle document contributes once, regardless of turns, moves or shiny appearance. All matching documents are read, rather than the history screen's latest 50.
+
+Rate denominator = wins + losses + draws, with wins from the selected species' perspective. Empty cohorts return no rate rather than an invented zero. Small samples are labelled. Different moves, stats and human/AI choices still affect outcomes; observed rates are not calibrated predictions. The UI uses the existing rules/difficulty filters, preserves pair selections and shows instructions when no qualifying data exists. Pokémon dropdown names still come from the relational catalogue; outcome evidence comes entirely from MongoDB.
+
 ## Verification
 
 ```powershell
@@ -85,7 +95,7 @@ Prediction evaluation distinguishes favoured-win and disadvantaged-loss directio
 python -m unittest discover -s tests -v
 # Ten real MySQL/MongoDB query checks using the existing .env account.
 $env:RUN_QUERY_TESTS = '1'
-python -m unittest tests.test_database_queries tests.test_historical_queries -v
+python -m unittest tests.test_database_queries tests.test_historical_queries tests.test_simulator_matchups -v
 # Optional read-only browser fixtures; requires requirements-dev.txt and an app.
 python scripts/check_database_evidence.py
 ```

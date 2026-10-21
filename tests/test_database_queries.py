@@ -95,6 +95,21 @@ class MySQLRecommendationTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             recommend(self.trainer + 99999, self.team)
 
+    def test_legendary_candidates_never_duplicate_retained_species(self):
+        self.roster([150])
+        duplicate = self.add_owned(150)
+        self.cursor.execute('UPDATE owned_pokemon SET is_shiny=TRUE WHERE id=%s', (duplicate['owned_id'],))
+        result = self.compare([duplicate, self.add_owned(144), self.add_owned(7)])
+        self.assertNotIn(duplicate['owned_id'], [s['owned_id'] for s in result['suggestions']])
+
+    def test_full_team_recommendations_can_repair_one_legacy_legend_duplicate(self):
+        self.roster([144, 144, 10, 13, 19, 21])
+        result = self.compare([self.add_owned(7), self.add_owned(150)])
+        self.assertTrue(result['suggestions'])
+        self.cursor.execute('SELECT owned_id FROM team_members WHERE team_id=%s AND slot IN (1,2)', (self.team,))
+        duplicates = {r['owned_id'] for r in self.cursor.fetchall()}
+        self.assertTrue(all(s['replace_owned_id'] in duplicates for s in result['suggestions']))
+
 
 @unittest.skipUnless(os.getenv("RUN_QUERY_TESTS") == "1", "Set RUN_QUERY_TESTS=1 for real query fixtures")
 class MongoStrategyTests(unittest.TestCase):

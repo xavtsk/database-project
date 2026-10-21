@@ -3,6 +3,7 @@ from backend.catalog import catalog
 from backend.db import query, transaction
 from backend.errors import ValidationError, integer, text_name
 from backend.teams.budget import team_budget, validate_budget
+from backend.teams.limits import NON_LEGENDARY_COLLECTION_LIMIT, validate_team_species
 
 
 def profiles():
@@ -36,6 +37,9 @@ def choose_starter(trainer_id, pokemon_id):
         owner = cursor.fetchone()
         if not owner or owner["starter_chosen"]:
             raise ValidationError("This trainer has already chosen a starter")
+        cursor.execute("SELECT COUNT(*) AS copies FROM owned_pokemon WHERE trainer_id=%s AND pokemon_id=%s AND is_shiny=FALSE", (trainer_id, pokemon_id))
+        if cursor.fetchone()["copies"] >= NON_LEGENDARY_COLLECTION_LIMIT:
+            raise ValidationError("This species has reached the six-copy normal collection limit")
         cursor.execute("INSERT INTO owned_pokemon(trainer_id,pokemon_id,source) VALUES (%s,%s,'starter')", (trainer_id, pokemon_id))
         owned_id = cursor.lastrowid
         cursor.execute("INSERT INTO teams(trainer_id,name) VALUES (%s,'My first team')", (trainer_id,))
@@ -48,8 +52,9 @@ def choose_starter(trainer_id, pokemon_id):
 
 
 def collection(trainer_id):
-    rows = query("SELECT id AS owned_id,pokemon_id,source,acquired_at FROM owned_pokemon WHERE trainer_id=%s ORDER BY id", (trainer_id,))
-    return [dict(row, pokemon=catalog()[0][row["pokemon_id"]]) for row in rows]
+    rows = query("SELECT id AS owned_id,pokemon_id,source,acquired_at,is_shiny FROM owned_pokemon WHERE trainer_id=%s ORDER BY pokemon_id,is_shiny,id", (trainer_id,))
+    return [dict(row, is_shiny=bool(row["is_shiny"]),
+                 pokemon=dict(catalog()[0][row["pokemon_id"]], is_shiny=bool(row["is_shiny"]))) for row in rows]
 
 
 def list_teams(trainer_id):
@@ -63,12 +68,13 @@ def get_team(trainer_id, team_id):
         team = cursor.fetchone()
         if not team:
             raise ValidationError("Team not found for this trainer")
-        cursor.execute("""SELECT tm.slot,tm.owned_id,o.pokemon_id FROM team_members tm
+        cursor.execute("""SELECT tm.slot,tm.owned_id,o.pokemon_id,o.is_shiny FROM team_members tm
             JOIN owned_pokemon o ON o.id=tm.owned_id WHERE tm.team_id=%s ORDER BY tm.slot""", (team_id,))
         members = cursor.fetchall()
         cursor.execute("SELECT member_slot,move_id FROM team_member_moves WHERE team_id=%s ORDER BY member_slot,move_slot", (team_id,))
         selections = cursor.fetchall()
-    team["members"] = [dict(m, pokemon=catalog()[0][m["pokemon_id"]],
+    team["members"] = [dict(m, is_shiny=bool(m["is_shiny"]),
+                            pokemon=dict(catalog()[0][m["pokemon_id"]], is_shiny=bool(m["is_shiny"])),
                             moves=[s["move_id"] for s in selections if s["member_slot"] == m["slot"]]) for m in members]
     team["budget"] = team_budget(m["pokemon"] for m in team["members"])
     return team
@@ -100,7 +106,9 @@ def save_team(trainer_id, name, members, team_id=None):
             allowed = {m["id"] for m in catalog()[0][owned[member["owned_id"]]]["moves"]}
             if not set(move_ids) <= allowed:
                 raise ValidationError("A selected move is not in this Pokémon's fixed move pool")
-        validate_budget(catalog()[0][owned[m["owned_id"]]] for m in members)
+        proposed = [catalog()[0][owned[m["owned_id"]]] for m in members]
+        validate_team_species(proposed)
+        validate_budget(proposed)
         if team_id is None:
             cursor.execute("INSERT INTO teams(trainer_id,name) VALUES (%s,%s)", (trainer_id, name))
             team_id = cursor.lastrowid

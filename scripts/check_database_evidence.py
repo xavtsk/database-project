@@ -17,7 +17,7 @@ def check():
     with sync_playwright() as p:
         browser = p.chromium.launch(channel=os.getenv("BROWSER_CHANNEL") or None)
         page = browser.new_page(viewport={"width": 1440, "height": 1100})
-        errors, filters, failures = [], [], {}
+        errors, filters, failures, matchups = [], [], {}, []
         page.on("pageerror", lambda error: errors.append(str(error)))
 
         def api(route):
@@ -46,18 +46,25 @@ def check():
                                 repetition=[dict(_id=dict(difficulty=difficulty or "medium", team_size=1, pattern="high repetition"),
                                                  battles=1, wins=1, losses=0, draws=0, average_top_share=.875)],
                                 predictions=[dict(_id=dict(method="move-pressure-1", label="favoured", outcome="win"), battles=1)])
-            elif url.path == "/api/analytics/historical":
-                query = parse_qs(url.query)
+            elif url.path == "/api/analytics/matchups":
+                query = parse_qs(url.query, keep_blank_values=True)
                 pokemon_id = int(query.get("pokemon_id", ["4"])[0])
                 opponent_id = int(query.get("opponent_id", ["7"])[0])
-                data = dict(pokemon_id=pokemon_id, opponent_id=opponent_id, installed=True,
-                            source=dict(license="CC0: Public Domain", manifest_sha256="a" * 64),
+                rules = query.get("rules_version", ["prototype-2"])[0]
+                difficulty = query.get("difficulty", [""])[0]
+                matchups.append((rules, difficulty, pokemon_id, opponent_id))
+                if pokemon_id == opponent_id:
+                    route.fulfill(status=400, content_type="application/json", body=json.dumps(dict(error="Choose two different Pokemon from IDs 1 to 151")))
+                    return
+                data = dict(pokemon_id=pokemon_id, opponent_id=opponent_id, source="mongodb",
+                            rules_version=rules, difficulty=difficulty,
                             pokemon=[dict(id=id, name=name) for id, name in ((1, "bulbasaur"), (4, "charmander"), (7, "squirtle"))],
-                            note="External synthetic 1v1 results; separate from simulator predictions.",
-                            rows=[], battles=0)
-                if pokemon_id == 4:
-                    data.update(battles=2, rows=[dict(attacker_role="first", battles=1, wins=1, losses=0, win_rate=1),
-                                                dict(attacker_role="second", battles=1, wins=0, losses=1, win_rate=0)])
+                            note="Only your completed one-Pokemon-per-side battles; forfeits excluded. Observed outcomes include draws.",
+                            rows=[], summary=dict(battles=0, wins=0, losses=0, draws=0, win_rate=None))
+                if pokemon_id == 4 and rules == 'prototype-2':
+                    data.update(summary=dict(battles=3, wins=2, losses=0, draws=1, win_rate=2/3),
+                                rows=[dict(difficulty=difficulty or 'medium', selected_side='player', battles=2, wins=1, losses=0, draws=1, win_rate=.5, average_turns=6),
+                                      dict(difficulty=difficulty or 'medium', selected_side='opponent', battles=1, wins=1, losses=0, draws=0, win_rate=1, average_turns=4)])
             else:
                 data = dict(battles=[])
             route.fulfill(content_type="application/json", body=json.dumps(data))
@@ -74,34 +81,45 @@ def check():
         expect(evidence).to_contain_text("4 completed battles")
         expect(evidence).to_contain_text("Small sample")
         expect(evidence).to_contain_text("73.3%")
+        expect(evidence.get_by_role("columnheader", name="Miss rate", exact=True)).to_be_visible()
+        expect(evidence).to_contain_text("26.7%")
         expect(evidence).to_contain_text("6.3")
         expect(evidence).to_contain_text("high repetition")
         expect(page.locator("#prediction-results")).to_contain_text("1 / 1 decisive battles")
-        external = page.locator("#historical-evidence")
-        expect(external).to_contain_text("2 distinct source results")
-        expect(external).to_contain_text("CC0")
-        expect(external).to_contain_text("first")
-        expect(external).to_contain_text("second")
-        external.screenshot(path=str(ROOT / ".local/historical-evidence-desktop.png"))
-        page.locator('#historical-form [name="pokemon_id"]').select_option("1")
+        matchup = page.locator("#matchup-evidence")
+        expect(matchup).to_contain_text("3 completed 1v1 battles")
+        expect(matchup).to_contain_text("MongoDB")
+        expect(matchup).to_contain_text("66.7%")
+        assert "kaggle.com" not in matchup.inner_html()
+        expect(matchup).to_contain_text("Your team")
+        expect(matchup).to_contain_text("AI opponent")
+        matchup.screenshot(path=str(ROOT / ".local/simulator-matchups-desktop.png"))
+        page.locator('#matchup-form [name="pokemon_id"]').select_option("1")
         page.get_by_role("button", name="Compare matchup", exact=True).click(); ready()
-        expect(external).to_contain_text("No historical evidence")
+        expect(matchup).to_contain_text("No completed 1v1 battles")
+        expect(matchup).to_contain_text("Save a team with one Pokemon")
         evidence.screenshot(path=str(ROOT / ".local/database-evidence-desktop.png"))
         page.locator('[name="difficulty"]').select_option("hard")
         page.get_by_role("button", name="Apply filters", exact=True).click(); ready()
         assert filters[-1] == ("prototype-2", "hard")
-        expect(page.locator('#historical-form [name="pokemon_id"]')).to_have_value("1")
+        assert matchups[-1] == ("prototype-2", "hard", 1, 7)
+        expect(page.locator('#matchup-form [name="pokemon_id"]')).to_have_value("1")
         page.locator('[name="rules_version"]').select_option("prototype-1")
         page.get_by_role("button", name="Apply filters", exact=True).click(); ready()
         expect(evidence).to_contain_text("0 completed battles")
+        assert matchups[-1] == ("prototype-1", "hard", 1, 7)
         expect(evidence).to_contain_text("No player attacks")
         expect(page.locator("#prediction-results")).to_contain_text("No completed battles with predictions")
         page.set_viewport_size({"width": 390, "height": 844})
         page.locator('[name="rules_version"]').select_option("prototype-2")
         page.get_by_role("button", name="Apply filters", exact=True).click(); ready()
+        page.locator('#matchup-form [name="pokemon_id"]').select_option("4")
+        page.get_by_role("button", name="Compare matchup", exact=True).click(); ready()
+        expect(matchup).to_contain_text('3 completed 1v1 battles')
+        assert matchups[-1] == ('prototype-2', 'hard', 4, 7)
         assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
         evidence.screenshot(path=str(ROOT / ".local/database-evidence-mobile.png"))
-        external.screenshot(path=str(ROOT / ".local/historical-evidence-mobile.png"))
+        matchup.screenshot(path=str(ROOT / ".local/simulator-matchups-mobile.png"))
         # A stale backend returns an HTML 404 for a new route. Show restart help.
         failures["/api/analytics/strategy"] = (404, "text/html", "<!doctype html><h1>Not Found</h1>")
         page.reload(wait_until="domcontentloaded"); ready()
@@ -115,9 +133,14 @@ def check():
         failures["/api/analytics/strategy"] = (503, "application/json", json.dumps(dict(error="Fixture database unavailable")))
         page.reload(wait_until="domcontentloaded"); ready()
         expect(page.locator("#notice")).to_have_text("Fixture database unavailable")
+        failures.clear()
+        failures['/api/analytics/matchups'] = (404, 'text/html', '<!doctype html><h1>Not Found</h1>')
+        page.reload(wait_until='domcontentloaded'); ready()
+        expect(page.locator('#notice')).to_contain_text('/api/analytics/matchups')
+        expect(page.locator('#notice')).to_contain_text('Restart the Python app')
         assert not errors, errors
         print("PASS: strategy filters, damage/attempts including misses, repetition cohorts, small samples, "
-              "prediction counts, external matchup roles, empty cohorts, mobile layout and HTML/JSON errors. No API writes.")
+              "prediction counts, MongoDB matchup roles/draws/filters, empty cohorts, mobile layout and HTML/JSON errors. No API writes.")
         browser.close()
 
 

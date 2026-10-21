@@ -42,7 +42,7 @@ class APIErrorTests(unittest.TestCase):
         self.assertIn("internal fixture details", "\n".join(logs.output))
 
     def test_new_analytics_routes_exist_before_profile_selection(self):
-        for path in ("/api/analytics/strategy", "/api/analytics/historical"):
+        for path in ("/api/analytics/strategy", "/api/analytics/historical", "/api/analytics/matchups"):
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 400)

@@ -135,6 +135,8 @@ class AdviceTests(unittest.TestCase):
         self.assertEqual(b["prediction"]["history"]["battles"], 0)
         self.assertEqual(b["turn_count"], 0)
         self.assertEqual(b["budget"]["total"], 3)
+        self.assertEqual(b["reward_odds"]["shiny_chance"], .02)
+        self.assertEqual(b["reward_odds"]["rarities"]["legendary"], .05)
         self.assertEqual(logs.insert_one.call_args.args[0], b)
         generate.assert_called_once()
         logs.find_one.return_value = b

@@ -16,6 +16,7 @@ def combatant(pokemon, selected_moves):
     if len(selected_moves) != 4 or len(set(selected_moves)) != 4 or not set(selected_moves) <= moves.keys():
         raise ValidationError("Battle members need four distinct eligible moves")
     return dict(id=pokemon["id"], name=pokemon["name"], types=list(pokemon["types"]),
+                is_shiny=bool(pokemon.get("is_shiny", False)),
                 hp=2 * pokemon["hp"] + 60, max_hp=2 * pokemon["hp"] + 60,
                 stats={s: pokemon[s] + 5 for s in ("attack", "defense", "special_attack", "special_defense", "speed")},
                 moves=[dict(deepcopy(moves[m]), remaining_pp=moves[m]["pp"]) for m in selected_moves])
@@ -75,7 +76,7 @@ def resolve(state, action, rng, chart):
             raise ValidationError("Choose a different healthy Pokémon")
         player["active"] = slot
         if p["hp"] <= 0:
-            battle["turns"].append(dict(number=battle["turn_count"], kind="replacement", events=[dict(kind="switch", side="player", name=player["members"][slot]["name"])]))
+            battle["turns"].append(dict(number=battle["turn_count"], kind="replacement", events=[dict(kind="switch", side="player", name=player["members"][slot]["name"], slot=slot)]))
             return battle
         player_move = None
     else:
@@ -91,7 +92,7 @@ def resolve(state, action, rng, chart):
     opponent_move = choose_move(o, p, battle["difficulty"], rng, chart, damage_cap=damage_cap)
     events = []
     if switching:
-        events.append(dict(kind="switch", side="player", name=player["members"][player["active"]]["name"]))
+        events.append(dict(kind="switch", side="player", name=player["members"][player["active"]]["name"], slot=player["active"]))
         actions = [("opponent", opponent_move)]
     else:
         actions = [("player", player_move), ("opponent", opponent_move)]
@@ -108,7 +109,7 @@ def resolve(state, action, rng, chart):
         hit = move["accuracy"] is None or rng.random() * 100 < move["accuracy"]
         damage = min(target["hp"], expected_damage(attacker, target, move, chart, rng.uniform(.85, 1), damage_cap=damage_cap)) if hit else 0
         target["hp"] -= damage
-        event = dict(kind="move", side=side, pokemon_id=attacker["id"], name=attacker["name"], move_id=move["id"], move=move["name"], target=target["name"], damage=damage, hit=hit, effectiveness=type_factor(move, target, chart))
+        event = dict(kind="move", side=side, pokemon_id=attacker["id"], name=attacker["name"], move_id=move["id"], move=move["name"], move_type=move["type"], target=target["name"], damage=damage, hit=hit, effectiveness=type_factor(move, target, chart))
         if not move["id"]:
             recoil = min(attacker["hp"], max(1, floor(damage / 4)))
             attacker["hp"] -= recoil
@@ -131,5 +132,5 @@ def resolve(state, action, rng, chart):
         battle["status"] = "draw"
     elif o["hp"] <= 0:
         opponent["active"] = next(i for i, m in enumerate(opponent["members"]) if m["hp"] > 0)
-        events.append(dict(kind="switch", side="opponent", name=opponent["members"][opponent["active"]]["name"]))
+        events.append(dict(kind="switch", side="opponent", name=opponent["members"][opponent["active"]]["name"], slot=opponent["active"]))
     return battle

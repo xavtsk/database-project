@@ -25,7 +25,7 @@ def species_evidence(battles, trainer_id, rules_version, species):
 def history(battles, trainer_id):
     return list(battles.find({"trainer_id": trainer_id}, {
         "_id": 1, "difficulty": 1, "status": 1, "turn_count": 1,
-        "started_at": 1, "ended_at": 1, "team_name": 1, "reward": 1,
+        "started_at": 1, "ended_at": 1, "team_id": 1, "team_name": 1, "reward": 1,
     }).sort("started_at", -1).limit(50))
 
 

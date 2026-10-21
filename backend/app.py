@@ -20,6 +20,7 @@ from backend.battles import service as battles
 from backend.analytics import service as analytics
 from backend.analytics.strategy import report as strategy_report
 from backend.analytics.historical import matchup as historical_matchup
+from backend.analytics.matchups import report as simulator_matchups
 
 
 def create_app(test_config=None):
@@ -89,7 +90,7 @@ def create_app(test_config=None):
 
     @app.get("/")
     def index():
-        return render_template("index.html")
+        return render_template("index.html", reward_odds=battles.REWARD_ODDS)
 
     @app.get("/api/session")
     def current_session():
@@ -190,6 +191,12 @@ def create_app(test_config=None):
     def external_matchup():
         selected()
         return jsonify(historical_matchup(request.args.get("pokemon_id", "4"), request.args.get("opponent_id", "7")))
+
+    @app.get("/api/analytics/matchups")
+    def own_matchups():
+        return jsonify(simulator_matchups(logs, selected(), request.args.get("pokemon_id", "4"),
+                                          request.args.get("opponent_id", "7"),
+                                          request.args.get("rules_version", RULES_VERSION), request.args.get("difficulty", "")))
 
     @app.get("/api/health")
     def health():

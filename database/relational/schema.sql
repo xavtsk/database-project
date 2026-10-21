@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS trainers (
 CREATE TABLE IF NOT EXISTS owned_pokemon (
  id INT AUTO_INCREMENT PRIMARY KEY, trainer_id INT NOT NULL, pokemon_id SMALLINT NOT NULL,
  source VARCHAR(12) NOT NULL CHECK(source IN ('starter','reward')),
+ is_shiny BOOLEAN NOT NULL DEFAULT FALSE CHECK(is_shiny IN (0,1)),
  acquired_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  UNIQUE(id,trainer_id), FOREIGN KEY(trainer_id) REFERENCES trainers(id),
  FOREIGN KEY(pokemon_id) REFERENCES pokemon(id)
