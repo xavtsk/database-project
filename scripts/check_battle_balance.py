@@ -3,7 +3,6 @@
 Run after database setup: python3 -m scripts.check_battle_balance
 Reads the SQL catalogue but creates no trainers, battles or rewards.
 """
-from collections import defaultdict
 import json
 import random
 import statistics

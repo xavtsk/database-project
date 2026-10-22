@@ -157,10 +157,6 @@ The downloader uses sequential requests, a short delay, timeouts, and a local ca
 ```sh
 # Reuse the original 151-resource scope and fill any missing references.
 python scripts/data_import/fetch_pokeapi.py --start-id 1 --end-id 151
-# Reproduce stats and types: 151 Pokémon rows, 218 type relationships.
-python scripts/data_import/process_pokemon.py
-# Optional original small experiment, written to data/processed/sample/.
-python scripts/data_import/process_pokemon.py --sample
 # Reproduce the gameplay catalogue, without network access.
 python scripts/data_import/prepare_game_data.py
 # Audit cached sources and normalized keys/references; no SQL writes.
@@ -236,7 +232,7 @@ For Auto Battle, `python scripts/check_auto_battle.py` intercepts every API requ
 - `database/nosql/`: MongoDB battle validation rules; setup also creates indexes.
 - `scripts/`: raw collection, processing, database setup, app launcher and optional browser check.
 - `tests/`: data, battle-rule and real-database integration tests.
-- `data/raw/`, `data/processed/`, `data/generated/`: source data, prepared data and future generated exports. Live battles reside in MongoDB.
+- `data/raw/`, `data/processed/`: source data and the prepared gameplay catalogue/historical mappings. Live battles reside in MongoDB.
 - `docs/`: design decisions, diagrams and verification notes.
 - `.local/`: ignored local binaries, database storage, logs and screenshots.
 

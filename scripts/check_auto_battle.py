@@ -3,7 +3,6 @@
 Requires a running app and requirements-dev.txt. Every API call is intercepted;
 POSTs only resolve an in-memory battle with the actual engine. No database writes.
 """
-from copy import deepcopy
 import json
 import os
 from pathlib import Path
