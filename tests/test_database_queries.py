@@ -34,7 +34,7 @@ class MySQLRecommendationTests(unittest.TestCase):
         self.addCleanup(self.connection.rollback)
         self.addCleanup(self.cursor.close)
         @contextmanager
-        def tx():
+        def tx(read_only=False):
             yield self.cursor
         for module in ("backend.db.transaction", "backend.teams.service.transaction"):
             mock = patch(module, tx);mock.start();self.addCleanup(mock.stop)

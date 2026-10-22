@@ -32,7 +32,7 @@ class SavedCollectionRewardTests(unittest.TestCase):
         self.addCleanup(self.cursor.close)
 
         @contextmanager
-        def tx():
+        def tx(read_only=False):
             yield self.cursor
         for module in ('backend.db.transaction', 'backend.teams.service.transaction', 'backend.battles.service.transaction'):
             mock = patch(module, tx)

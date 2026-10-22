@@ -45,8 +45,8 @@ def choose_starter(trainer_id, pokemon_id):
         cursor.execute("INSERT INTO teams(trainer_id,name) VALUES (%s,'My first team')", (trainer_id,))
         team_id = cursor.lastrowid
         cursor.execute("INSERT INTO team_members VALUES (%s,1,%s,%s)", (team_id, owned_id, trainer_id))
-        for slot, move in enumerate(default_moves(catalog()[0][pokemon_id]), 1):
-            cursor.execute("INSERT INTO team_member_moves VALUES (%s,1,%s,%s)", (team_id, slot, move))
+        cursor.executemany("INSERT INTO team_member_moves VALUES (%s,1,%s,%s)",
+                           [(team_id, slot, move) for slot, move in enumerate(default_moves(catalog()[0][pokemon_id]), 1)])
         cursor.execute("UPDATE trainers SET starter_chosen=TRUE WHERE id=%s", (trainer_id,))
     return team_id
 
@@ -63,19 +63,27 @@ def list_teams(trainer_id):
 
 
 def get_team(trainer_id, team_id):
-    with transaction() as cursor:
-        cursor.execute("SELECT id,name FROM teams WHERE id=%s AND trainer_id=%s", (team_id, trainer_id))
-        team = cursor.fetchone()
-        if not team:
-            raise ValidationError("Team not found for this trainer")
-        cursor.execute("""SELECT tm.slot,tm.owned_id,o.pokemon_id,o.is_shiny FROM team_members tm
-            JOIN owned_pokemon o ON o.id=tm.owned_id WHERE tm.team_id=%s ORDER BY tm.slot""", (team_id,))
-        members = cursor.fetchall()
-        cursor.execute("SELECT member_slot,move_id FROM team_member_moves WHERE team_id=%s ORDER BY member_slot,move_slot", (team_id,))
-        selections = cursor.fetchall()
-    team["members"] = [dict(m, is_shiny=bool(m["is_shiny"]),
-                            pokemon=dict(catalog()[0][m["pokemon_id"]], is_shiny=bool(m["is_shiny"])),
-                            moves=[s["move_id"] for s in selections if s["member_slot"] == m["slot"]]) for m in members]
+    # One owned-team query also returns empty teams and members without moves.
+    rows = query("""SELECT t.id,t.name,tm.slot,tm.owned_id,o.pokemon_id,o.is_shiny,mm.move_id
+        FROM teams t LEFT JOIN team_members tm ON tm.team_id=t.id
+        LEFT JOIN owned_pokemon o ON o.id=tm.owned_id
+        LEFT JOIN team_member_moves mm ON mm.team_id=tm.team_id AND mm.member_slot=tm.slot
+        WHERE t.id=%s AND t.trainer_id=%s ORDER BY tm.slot,mm.move_slot""", (team_id, trainer_id))
+    if not rows:
+        raise ValidationError("Team not found for this trainer")
+    team = dict(id=rows[0]["id"], name=rows[0]["name"], members=[])
+    members = {}
+    for row in rows:
+        if row["slot"] is None:
+            continue
+        if row["slot"] not in members:
+            member = {k: row[k] for k in ("slot", "owned_id", "pokemon_id")}
+            member.update(is_shiny=bool(row["is_shiny"]), moves=[],
+                          pokemon=dict(catalog()[0][row["pokemon_id"]], is_shiny=bool(row["is_shiny"])))
+            members[row["slot"]] = member
+            team["members"].append(member)
+        if row["move_id"] is not None:
+            members[row["slot"]]["moves"].append(row["move_id"])
     team["budget"] = team_budget(m["pokemon"] for m in team["members"])
     return team
 
@@ -118,10 +126,13 @@ def save_team(trainer_id, name, members, team_id=None):
                 raise ValidationError("Team not found for this trainer")
             cursor.execute("UPDATE teams SET name=%s WHERE id=%s", (name, team_id))
             cursor.execute("DELETE FROM team_members WHERE team_id=%s", (team_id,))
-        for slot, member in enumerate(members, 1):
-            cursor.execute("INSERT INTO team_members VALUES (%s,%s,%s,%s)", (team_id, slot, member["owned_id"], trainer_id))
-            for move_slot, move_id in enumerate(member["moves"], 1):
-                cursor.execute("INSERT INTO team_member_moves VALUES (%s,%s,%s,%s)", (team_id, slot, move_slot, move_id))
+        if members:
+            # Insert all parents before their moves, inside the same transaction.
+            cursor.executemany("INSERT INTO team_members VALUES (%s,%s,%s,%s)",
+                               [(team_id, slot, member["owned_id"], trainer_id) for slot, member in enumerate(members, 1)])
+            cursor.executemany("INSERT INTO team_member_moves VALUES (%s,%s,%s,%s)",
+                               [(team_id, slot, move_slot, move_id) for slot, member in enumerate(members, 1)
+                                for move_slot, move_id in enumerate(member["moves"], 1)])
     return team_id
 
 

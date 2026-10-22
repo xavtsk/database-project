@@ -107,7 +107,7 @@ class HistoricalSQLTests(unittest.TestCase):
     def test_historical_api_uses_selected_profile_and_returns_live_query_results(self):
         from backend.app import create_app
         @contextmanager
-        def fixture_transaction():
+        def fixture_transaction(read_only=False):
             with self.connection.cursor(pymysql.cursors.DictCursor) as cursor:
                 yield cursor
         self.cursor.execute("INSERT INTO trainers(name) VALUES ('Historical API fixture')")

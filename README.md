@@ -18,6 +18,8 @@ python scripts/run_local.py
 
 Open **http://127.0.0.1:5050**. If an existing app is already running there, open that address without starting a second copy.
 
+For the shared Google Cloud MySQL + MongoDB Atlas setup, start the MySQL SSH tunnel before launching the app. The original development computer uses private `.local/gcp/start-tunnel.cmd` and `.local/gcp/run-cloud.cmd` launchers in separate terminals. The first reconnects dropped SSH sessions; the second starts the app with the saved `.env` connection settings. Teammates should follow the [cloud connection guide](docs/database-design/google-cloud-mysql.md) with their own access. The local database services are unnecessary when both configured databases are in the cloud.
+
 After updating backend code, restart the running app: press **Ctrl+C in its terminal**, run `python scripts/run_local.py` again, then refresh the browser. An old Python process can serve updated frontend files while still missing new API routes. This causes HTML 404 responses and errors such as `Unexpected token '<'` or the newer explicit restart message.
 
 1. Click **Choose trainer**, create a profile and select Bulbasaur, Charmander or Squirtle.
@@ -75,6 +77,8 @@ python -m scripts.data_import.import_historical
 Then restart the app and try Collection & teams → Team analysis → Battle arena → Battle analytics. New trainers need battle rewards before additional owned Pokémon can be recommended. The 1v1 matchup panel uses your own MongoDB battle history; pairs without qualifying battles show an empty state with instructions to build a one-member team and finish battles.
 
 ## Set up another computer
+
+For the selected shared-database hosting plan, see the [low-cost Google Cloud MySQL setup](docs/database-design/google-cloud-mysql.md). It uses an `e2-micro` VM for MySQL and MongoDB Atlas for battle logs, with an SSH tunnel from each teammate's computer. Migration must preserve existing SQL IDs before switching the app.
 
 Requirements: Python 3.10+, **MySQL Server 8.0.19+ (8.4 LTS recommended)**, and MongoDB 8.0+. Earlier prototype verification used MariaDB; see the [MySQL switch notes](docs/progress-report/mysql-switch-verification.md) for current checks. MySQL Workbench is the database client; install MySQL Server separately. Both database services must be running locally or accessible through your configured connection. No frontend build tool is required.
 

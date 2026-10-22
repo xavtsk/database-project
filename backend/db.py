@@ -2,11 +2,70 @@
 from contextlib import contextmanager
 import os
 import re
+from queue import Empty, LifoQueue
+from threading import BoundedSemaphore
+from time import monotonic
 
 import pymysql
 from pymongo import MongoClient
+from flask import current_app, has_app_context
 
 from backend.config import sql_options
+
+
+class SQLPool:
+    """At most four exclusive connections per app; completed transactions are reused."""
+
+    def __init__(self, options, size=4):
+        self.options = dict(options)
+        # Single SELECT statements finish without a separate COMMIT round trip.
+        # Multi-statement writes explicitly BEGIN in transaction() below.
+        self.options['autocommit'] = True
+        self.idle = LifoQueue()
+        self.slots = BoundedSemaphore(size)
+
+    def acquire(self):
+        if not self.slots.acquire(timeout=5):
+            raise pymysql.OperationalError(2003, "MySQL connections are busy; retry shortly")
+        try:
+            try:
+                connection, returned_at = self.idle.get_nowait()
+            except Empty:
+                connection = None
+            if connection is not None:
+                try:
+                    if not connection.open:
+                        raise pymysql.InterfaceError(0, "Closed connection")
+                    # Avoid an extra network round trip on every short request.
+                    if monotonic() - returned_at > 30:
+                        connection.ping(reconnect=False)
+                except pymysql.MySQLError:
+                    connection.close()
+                    connection = None
+            if connection is None:
+                connection = pymysql.connect(**self.options, cursorclass=pymysql.cursors.DictCursor)
+            return connection
+        except BaseException:
+            self.slots.release()
+            raise
+
+    def release(self, connection, reusable):
+        try:
+            if reusable and connection.open:
+                self.idle.put((connection, monotonic()))
+            else:
+                connection.close()
+        finally:
+            self.slots.release()
+
+    def close(self):
+        """Release idle sockets when the app process exits or a test finishes."""
+        while True:
+            try:
+                connection, _ = self.idle.get_nowait()
+            except Empty:
+                break
+            connection.close()
 
 
 def validate_mysql_server(version, edition):
@@ -34,23 +93,44 @@ def check_mysql():
 
 
 @contextmanager
-def transaction():
-    connection = pymysql.connect(**sql_options(), cursorclass=pymysql.cursors.DictCursor)
+def transaction(read_only=False):
+    pool = current_app.extensions.get("sql_pool") if has_app_context() else None
+    connection = pool.acquire() if pool else pymysql.connect(**sql_options(), autocommit=True, cursorclass=pymysql.cursors.DictCursor)
+    reusable = False
     try:
+        if not read_only:
+            connection.begin()
         with connection.cursor() as cursor:
             yield cursor
-        connection.commit()
-    except Exception:
-        connection.rollback()
+        if not read_only:
+            connection.commit()
+        reusable = True
+    except BaseException:
+        try:
+            connection.rollback()
+        except pymysql.MySQLError:
+            pass
         raise
     finally:
-        connection.close()
+        if pool:
+            pool.release(connection, reusable)
+        else:
+            connection.close()
 
 
 def query(sql, params=()):
-    with transaction() as cursor:
-        cursor.execute(sql, params)
-        return cursor.fetchall()
+    """Execute one read statement; grouped writes must use transaction()."""
+    for attempt in range(2):
+        try:
+            with transaction(read_only=True) as cursor:
+                cursor.execute(sql, params)
+                return cursor.fetchall()
+        except pymysql.OperationalError as error:
+            # A dropped idle socket is safe to replace for a standalone read.
+            # Never retry grouped writes or authentication/query errors.
+            code = error.args[0] if error.args else None
+            if attempt or code not in (2006, 2013):
+                raise
 
 
 def mongo_client():

@@ -60,7 +60,7 @@ class SavedAutoBattleTests(unittest.TestCase):
         row = self.saved(player=[fighter("fainted"), fighter("replacement")])
         self.logs.update_one({"_id": row["_id"]}, {"$set": {"player.members.0.hp": 0}})
         @contextmanager
-        def fixture_transaction():
+        def fixture_transaction(read_only=False):
             yield self.cursor
         with patch("backend.app.mongo_client", return_value=self.client), \
                 patch("backend.app.mongo_database", return_value=self.client[self.database]), \

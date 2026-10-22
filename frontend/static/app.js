@@ -149,7 +149,12 @@ async function openRewardCase() {
   element.querySelector('[data-action="skip-reward"]').focus({preventScroll:true});
 }
 
+// The reference catalogue is shared by profiles and fixed for this app session.
+// Keep mutable teams, collections and battle evidence live on every request.
+const catalogueResponses = new Map();
 async function api(path, method='GET', body) {
+  const cacheable=method==='GET' && /^\/pokemon(?:\/\d+)?(?:\?.*)?$/.test(path);
+  if(cacheable && catalogueResponses.has(path))return catalogueResponses.get(path);
   const response = await fetch(`/api${path}`, {method, headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf}, body:body===undefined?undefined:JSON.stringify(body)});
   const contentType=(response.headers.get('Content-Type')||'').split(';')[0].trim().toLowerCase();
   if(contentType!=='application/json'&&!contentType.endsWith('+json')) {
@@ -160,6 +165,10 @@ async function api(path, method='GET', body) {
   try {result=await response.json();}
   catch {throw new Error(`API /api${path.split('?')[0]} returned invalid JSON (HTTP ${response.status}). Check the app terminal for details.`);}
   if (!response.ok) throw new Error(result?.error || `Request failed (${response.status})`);
+  if(cacheable){
+    catalogueResponses.set(path,result);
+    if(catalogueResponses.size>20)catalogueResponses.delete(catalogueResponses.keys().next().value);
+  }
   return result;
 }
 function notice(message='') {const box=document.querySelector('#notice');box.textContent=message;box.hidden=!message;}
@@ -253,18 +262,30 @@ function collectionCard(owned,cost,copies) {
 function rememberName(){const input=document.querySelector('#team-name');if(input&&state.draft)state.draft.name=input.value;}
 function teamOptions(chosen) {return state.teams.map(t=>`<option value="${t.id}" ${t.id===Number(chosen)?'selected':''}>${esc(t.name)} · ${t.size}/6</option>`).join('');}
 async function renderAnalysis(teamId) {
-  await loadTeams();
+  state.teams=(await api('/teams')).teams;
   if(!state.teams.length){main.innerHTML=heading('KNOW YOUR STRENGTHS','Team analysis','Save a team to see its strengths and weaknesses.')+button('Build a team','go-teams','','primary');return;}
   teamId=teamId || state.teams[0].id;
-  const [a,r]=await Promise.all([api(`/teams/${teamId}/analysis`),api(`/teams/${teamId}/recommendations`)]);
+  // Recommendations can finish independently; their failure should not hide analysis.
+  const recommendation=api(`/teams/${teamId}/recommendations`).then(data=>({data}),error=>({error}));
+  const a=await api(`/teams/${teamId}/analysis`);
   main.innerHTML=heading('KNOW YOUR STRENGTHS','Team analysis','Understand your roster before stepping into the arena.')+`<div class="toolbar"><label>Team<select id="analysis-team">${teamOptions(teamId)}</select></label></div>
     <div class="metric-grid">${metric('Team size',a.stats.size)}${metric('Total base stats',stats.reduce((sum,s)=>sum+a.stats['total_'+s],0))}${metric('Average Speed',a.stats.average_speed.toFixed(1))}${metric('Types represented',a.distribution.length)}</div>
     <div class="two-col"><section class="card"><h3>Defensive matchups</h3><p class="note">Number of members weak, resistant or immune to each attacking type. Both defensive types are combined.</p>${table(['Attacking type','Weak','Resistant','Immune'],a.matchups.map(r=>[tags([r.type]),`<span class="${r.weak?'weak':''}">${r.weak}</span>`,r.resistant,r.immune]))}</section>
     <div class="stack"><section class="card"><h3>Team statistics</h3>${table(['Stat','Total','Average'],stats.map(s=>[statLabel(s),a.stats['total_'+s],a.stats['average_'+s].toFixed(1)]))}</section><section class="card"><h3>Type distribution</h3>${a.distribution.length?table(['Type','Members'],a.distribution.map(t=>[tags([t.name]),t.count])):'No members yet.'}</section></div></div>
     <section class="card spacer"><h3>Offensive coverage</h3><p class="note">Best multiplier available from your selected moves against each single defending type. This is coverage, not a prediction of victory.</p><div class="tags">${a.coverage.map(c=>`<span class="type ${c.best_multiplier>1?'grass':''}">${c.type} · ${c.best_multiplier}×</span>`).join('')}</div></section>
-    <section class="card spacer" id="recommendations"><h3>Recommended partners</h3><p>Team budget: ${a.budget.total} / ${a.budget.limit} points.</p><p class="note">${esc(r.note)} Defensive exposure averages weakness multipliers above 1 across members and all attacking types; lower is better.</p>
+    <section class="card spacer" id="recommendations" aria-busy="true"><h3>Recommended partners</h3><p role="status">Finding partners for this team…</p></section>`;
+  const panel=document.querySelector('#recommendations');
+  recommendation.then(({data,error})=>{
+    // An earlier response must never overwrite another team's screen.
+    if(document.querySelector('#recommendations')!==panel)return;
+    panel.setAttribute('aria-busy','false');
+    panel.innerHTML=error?`<h3>Recommended partners</h3><p class="note">${esc(error.message)}</p>`:recommendationsContent(a,data,teamId);
+  });
+}
+function recommendationsContent(a,r,teamId) {
+  return `<h3>Recommended partners</h3><p>Team budget: ${a.budget.total} / ${a.budget.limit} points.</p><p class="note">${esc(r.note)} Defensive exposure averages weakness multipliers above 1 across members and all attacking types; lower is better.</p>
     ${r.suggestions.length?r.suggestions.map(s=>{const h=r.history.find(h=>h._id===s.pokemon_id);return `<article class="rules spacer"><h4>${s.replace_owned_id?`Replace ${esc(title(s.replace_name))} (#${s.replace_owned_id}) with`:'Consider adding'} ${esc(title(s.name))} (#${s.owned_id})</h4><p>${esc(s.reason)}</p><p class="note">Cost ${s.cost} points · proposed team ${s.budget.total} / ${s.budget.limit}. Suggested moves: ${s.suggested_moves.map(m=>esc(title(m.name))).join(', ')}.</p><p class="note">${h?`${h.battles} prior battles containing this species: ${h.wins} wins, ${h.losses} losses, ${h.draws} draws. Team results across different matchups; forfeits excluded.`:'No prior battle evidence for this species under the current rules.'}</p></article>`;}).join(''):'<p>No qualifying addition or replacement in your collection. Collect more Pokémon or review your selected moves.</p>'}
-    ${button('Review this team','edit-team',teamId)}</section>`;
+    ${button('Review this team','edit-team',teamId)}`;
 }
 function predictionPanel(b) {
   const p=b.prediction;

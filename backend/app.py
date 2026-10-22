@@ -1,14 +1,15 @@
 """Local browser application. Start with python3 -m backend.app."""
 import os
 import secrets
+import weakref
 
 from flask import Flask, jsonify, render_template, request, session
 from pymongo.errors import PyMongoError
 import pymysql
 from werkzeug.exceptions import HTTPException
 
-from backend.config import ROOT
-from backend.db import mongo_client, mongo_database, query, check_mysql
+from backend.config import ROOT, sql_options
+from backend.db import mongo_client, mongo_database, query, check_mysql, SQLPool
 from backend.errors import ValidationError, integer
 from backend.catalog import catalog
 from backend.pokedex import service as pokedex
@@ -42,6 +43,9 @@ def create_app(test_config=None):
     logs = mongo_database(client).battles
     app.extensions["mongo"] = client
     app.extensions["battles"] = logs
+    pool = SQLPool(sql_options())
+    app.extensions["sql_pool"] = pool
+    weakref.finalize(app, pool.close)
 
     def selected():
         trainer_id = session.get("trainer_id")
