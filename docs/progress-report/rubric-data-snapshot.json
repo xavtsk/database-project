@@ -1,0 +1,196 @@
+{
+  "checked_at_utc": "2026-10-22T18:17:34.468468+00:00",
+  "catalogue_audit": {
+    "status": "validated",
+    "source_files": 912,
+    "dataset_sha256": "463d4bbe81bd77d47046dd1d00c2c5c44acbffce139c631ca87025ef772f38e3",
+    "table_counts": {
+      "pokemon": 151,
+      "types": 18,
+      "moves": 353,
+      "pokemon_types": 218,
+      "pokemon_moves": 8103,
+      "type_effectiveness": 324
+    },
+    "project_move_overrides": 10
+  },
+  "catalogue_issue_count": 0,
+  "sql_rows": {
+    "pokemon": 151,
+    "types": 18,
+    "pokemon_types": 218,
+    "moves": 353,
+    "pokemon_moves": 8103,
+    "type_effectiveness": 324,
+    "trainers": 1,
+    "owned_pokemon": 38,
+    "teams": 5,
+    "team_members": 20,
+    "team_member_moves": 80,
+    "battle_rewards": 37,
+    "historical_sources": 1,
+    "historical_pokemon": 800,
+    "historical_combats": 50000
+  },
+  "sql_views": [
+    "v_pokemon_cost",
+    "v_pokemon_defense",
+    "v_ranked_default_moves"
+  ],
+  "sql_server": {
+    "version": "8.4.13",
+    "edition": "MySQL Community Server - GPL"
+  },
+  "mongo": {
+    "statuses": [
+      {
+        "_id": "loss",
+        "battles": 33
+      },
+      {
+        "_id": "win",
+        "battles": 37
+      }
+    ],
+    "completed_nonforfeit_cohorts": [
+      {
+        "_id": {
+          "rules": "prototype-2",
+          "difficulty": "easy",
+          "player_size": 1,
+          "opponent_size": 1
+        },
+        "battles": 7
+      },
+      {
+        "_id": {
+          "rules": "prototype-2",
+          "difficulty": "easy",
+          "player_size": 2,
+          "opponent_size": 2
+        },
+        "battles": 2
+      },
+      {
+        "_id": {
+          "rules": "prototype-2",
+          "difficulty": "easy",
+          "player_size": 3,
+          "opponent_size": 3
+        },
+        "battles": 1
+      },
+      {
+        "_id": {
+          "rules": "prototype-2",
+          "difficulty": "easy",
+          "player_size": 4,
+          "opponent_size": 4
+        },
+        "battles": 4
+      },
+      {
+        "_id": {
+          "rules": "prototype-2",
+          "difficulty": "easy",
+          "player_size": 6,
+          "opponent_size": 6
+        },
+        "battles": 2
+      },
+      {
+        "_id": {
+          "rules": "prototype-2",
+          "difficulty": "hard",
+          "player_size": 1,
+          "opponent_size": 1
+        },
+        "battles": 20
+      },
+      {
+        "_id": {
+          "rules": "prototype-2",
+          "difficulty": "hard",
+          "player_size": 6,
+          "opponent_size": 6
+        },
+        "battles": 10
+      },
+      {
+        "_id": {
+          "rules": "prototype-2",
+          "difficulty": "medium",
+          "player_size": 1,
+          "opponent_size": 1
+        },
+        "battles": 13
+      },
+      {
+        "_id": {
+          "rules": "prototype-2",
+          "difficulty": "medium",
+          "player_size": 2,
+          "opponent_size": 2
+        },
+        "battles": 1
+      },
+      {
+        "_id": {
+          "rules": "prototype-2",
+          "difficulty": "medium",
+          "player_size": 4,
+          "opponent_size": 4
+        },
+        "battles": 2
+      },
+      {
+        "_id": {
+          "rules": "prototype-2",
+          "difficulty": "medium",
+          "player_size": 6,
+          "opponent_size": 6
+        },
+        "battles": 2
+      }
+    ],
+    "predictions": [
+      {
+        "_id": "move-pressure-1",
+        "battles": 70
+      }
+    ],
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        },
+        "unique": true,
+        "partial": null,
+        "uniqueness_note": "MongoDB _id index is implicitly unique even when listIndexes omits the unique flag"
+      },
+      {
+        "name": "trainer_id_1_started_at_-1",
+        "key": {
+          "trainer_id": 1,
+          "started_at": -1
+        },
+        "unique": false,
+        "partial": null
+      },
+      {
+        "name": "one_active_battle_per_trainer",
+        "key": {
+          "trainer_id": 1
+        },
+        "unique": true,
+        "partial": {
+          "status": "active"
+        }
+      }
+    ],
+    "validator_present": true
+  },
+  "tracked_data_files": 922,
+  "tracked_private_artifacts": 0
+}

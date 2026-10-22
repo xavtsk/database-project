@@ -8,6 +8,12 @@ The playable prototype is on `feature/core-features`. Its database schema and si
 
 See the [application architecture](docs/diagrams/application-architecture.md) for the data flow and proposed EXP, levels and evolution extension. Progression is not implemented yet.
 
+For presentation preparation, start with the [project explanation guide](docs/database-design/project-explanation-guide.md). It walks through each feature in plain English: the user action, database work, purpose and a short spoken explanation. It covers the MySQL/MongoDB split, useful queries, data preparation, transactions, battle analytics and measured limitations. Detailed normal-form examples are kept in an optional [normalisation reference](docs/database-design/normalisation-reference.md).
+
+The [lecture-to-project map](docs/database-design/lecture-to-project-map.md) links the seven supplied INF2003 lecture PDFs to code and demo explanations, including functional dependencies, closure, BCNF, indexing and ACID transactions, with PDF page references.
+
+The [Excellent-band readiness audit](docs/progress-report/rubric-readiness.md) maps the actual marking rubric to verified evidence and outstanding submission gates. It links the [user manual](docs/submission/user-manual.md), report/presentation plans and a reproducible read-only SQL/MongoDB comparison; it is not a claim that the final assessed deliverables are complete.
+
 ## Play locally
 
 After completing the [Windows MySQL setup](docs/database-design/mysql-setup.md) and starting both databases, run from the repository root:
