@@ -48,17 +48,11 @@ def rank_candidates(members, candidates):
             coverage_gain = after["coverage"] - before["coverage"]
             if members and not (improvement > 1e-9 or (abs(improvement) <= 1e-9 and coverage_gain > 0)):
                 continue
-            reason = ("Affordable choice for an empty team." if not members else
-                      f"Defensive exposure {before['exposure']:.2f} → {after['exposure']:.2f}; "
-                      f"super-effective coverage {before['coverage']} → {after['coverage']} of 18 types.")
-            improved_types = [t for t in before["weaknesses"]
-                              if after["weaknesses"][t] < before["weaknesses"][t] - 1e-9]
-            new_coverage = sorted(set(after["covered_types"]) - set(before["covered_types"]))
-            if improved_types:
-                reason += " Less exposed to: " + ", ".join(improved_types) + "."
-            if new_coverage:
-                reason += " Adds coverage against: " + ", ".join(new_coverage) + "."
+            reason = ("Affordable option." if not members else
+                      f"Exposure {before['exposure']:.2f} → {after['exposure']:.2f}; "
+                      f"coverage {before['coverage']} → {after['coverage']}.")
             suggestions.append(dict(owned_id=candidate["owned_id"], pokemon_id=pokemon["id"], name=pokemon["name"],
+                                    types=pokemon["types"],
                                     cost=pokemon_cost(pokemon), budget=budget, before=before, after=after,
                                     exposure_reduction=improvement, coverage_gain=coverage_gain,
                                     replace_owned_id=members[outgoing]["owned_id"] if outgoing is not None else None,
@@ -76,8 +70,7 @@ def rank_candidates(members, candidates):
             break
     return dict(before=before, suggestions=unique, budget=team_budget(m["pokemon"] for m in members),
                 empty_team=not members,
-                note="Suggestions use default eligible moves. Review and save changes in Team Builder. "
-                     "Lower defensive exposure and coverage against single types do not guarantee victory.")
+                note="Eligible owned additions or replacements ranked by exposure, coverage and cost.")
 
 
 def recommend(trainer_id, team_id):
@@ -102,25 +95,18 @@ def recommend(trainer_id, team_id):
             continue
         pokemon = catalog()[0][row["pokemon_id"]]
         after = scores(row, "after")
-        reason = ("Affordable choice for an empty team." if not team["members"] else
-                  f"Defensive exposure {before['exposure']:.2f} → {after['exposure']:.2f}; "
-                  f"super-effective coverage {before['coverage']} → {after['coverage']} of 18 types.")
-        improved = sorted(t for t in before["weaknesses"] if after["weaknesses"][t] < before["weaknesses"][t] - 1e-9)
-        added = sorted(set(after["covered_types"]) - set(before["covered_types"]))
-        if improved:
-            reason += " Less exposed to: " + ", ".join(improved) + "."
-        if added:
-            reason += " Adds coverage against: " + ", ".join(added) + "."
+        reason = ("Affordable option." if not team["members"] else
+                  f"Exposure {before['exposure']:.2f} → {after['exposure']:.2f}; "
+                  f"coverage {before['coverage']} → {after['coverage']}.")
         budget = dict(version=team["budget"]["version"], limit=LIMIT, total=int(row["proposed_cost"]),
                       remaining=LIMIT-int(row["proposed_cost"]), within_budget=True)
         move_ids = default_moves(pokemon)
         suggestions.append(dict(owned_id=row["owned_id"], pokemon_id=row["pokemon_id"], name=row["name"],
+                                types=pokemon["types"],
                                 cost=int(row["cost"]), budget=budget, before=before, after=after,
                                 exposure_reduction=float(row["exposure_reduction"]), coverage_gain=int(row["coverage_gain"]),
                                 replace_owned_id=row["replace_owned_id"], replace_name=row["replace_name"],
                                 suggested_moves=[m for m in pokemon["moves"] if m["id"] in move_ids], reason=reason,
                                 rank=int(row["recommendation_rank"])))
     return dict(before=before, suggestions=suggestions, budget=team["budget"], empty_team=not team["members"],
-                note="MySQL ranks owned additions/replacements by defensive exposure, coverage gain and cost. "
-                     "Suggestions use default eligible moves. Review and save changes in Team Builder. "
-                     "These scores do not guarantee victory.")
+                note="Eligible owned additions or replacements ranked by exposure, coverage and cost.")

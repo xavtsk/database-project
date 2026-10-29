@@ -25,6 +25,31 @@ then show its database work and result. Normalisation is optional supporting
 design material; keep formal proofs for questions or a relevant report appendix.
 If making a normal-form claim, explain the documented ownership redundancy.
 
+## Database operations to show
+
+Use this as the speaking reference for the database demonstration. “Changes”
+means persistent database writes; calculations shown on screen do not
+automatically change a saved team.
+
+| User action | Main data read | Query/technique worth showing | What can be inserted, updated or deleted |
+| --- | --- | --- | --- |
+| Search the Pokédex | `pokemon`, `pokemon_types`, `types`; cached catalogue also contains `moves` and `pokemon_moves` | Parameterised `LIKE`, ID lookup and the nested type-membership query in [Pokédex service](../../backend/pokedex/service.py) | None; this feature is read-only |
+| Create or edit a team | `teams`, `team_members`, `owned_pokemon`, `team_member_moves`, `pokemon_moves` | Ownership-filtered `LEFT JOIN`, validation, `SELECT ... FOR UPDATE` and one SQL transaction in [team service](../../backend/teams/service.py) | Insert/update `teams`; replace `team_members` and `team_member_moves` together |
+| Delete a team | `teams` ownership check | `DELETE` plus foreign-key cascades | Delete the team and its member/move rows; owned Pokémon remain |
+| Analyse a team | Team/ownership/species/type/move tables and `v_pokemon_defense` | `COUNT`, `SUM`, `AVG`, `GROUP BY`, [matchup query](../../database/relational/queries/team_matchups.sql) and [coverage query](../../database/relational/queries/team_coverage.sql) | None; analysis is read-only |
+| Request recommendations | Current roster, unused owned copies, three SQL views and type effectiveness | CTE pipeline, `NOT EXISTS`, aggregates and `ROW_NUMBER()` in [recommendation query](../../database/relational/queries/team_recommendations.sql) | None; a suggestion changes data only after the user saves it in Team Builder |
+| Start and play a battle | Saved SQL team/catalogue; current MongoDB battle document | MongoDB insert followed by revision-checked `replace_one` updates in [battle service](../../backend/battles/service.py) | Insert one battle document; update its state, turns, prediction and result |
+| Deliver a reward | MongoDB result and SQL collection/reward rows | Trainer row lock, eligibility query and idempotent battle UUID | Insert `owned_pokemon` and `battle_rewards`; update the MongoDB delivery marker |
+| View battle analytics | MongoDB `battles` | `$match`, `$unwind`, `$group` and `$facet` pipelines | None; analytics is read-only |
+
+For the recording, show one relational read, one safe relational write and one
+MongoDB aggregation. A useful sequence is: team `LEFT JOIN` → team transaction
+→ recommendation CTE → battle document update → analytics pipeline. Keep each
+code extract to the lines needed to explain its input, operation and result.
+The application mirrors this mapping in collapsed **Database evidence** panels
+on the Pokédex, Team Builder, Team Analysis, Battle and Analytics screens. Open
+only the panel being discussed during the recording.
+
 ## Prepare the demonstration before recording
 
 - Use an isolated labelled demo trainer/database. Show the real stored data;
