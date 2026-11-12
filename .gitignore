@@ -39,6 +39,11 @@ coverage.xml
 logs/
 .local/
 
+# Ad hoc terminal test logs (curated evidence lives under docs/).
+/full-test-results.txt
+/integration-test-results.txt
+/query-test-results.txt
+
 # macOS
 .DS_Store
 .AppleDouble

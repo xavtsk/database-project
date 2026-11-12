@@ -25,8 +25,10 @@ from scripts.setup_databases import setup
 class DatabaseIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        from scripts.run_local import load_environment
+        load_environment()
         cls.previous={k:os.environ.get(k) for k in ('SQL_DATABASE','MONGO_DATABASE')}
-        cls.database='pokedex_test_'+uuid.uuid4().hex
+        cls.database='pokedex_test_'+uuid.uuid4().hex[:12]
         os.environ['SQL_DATABASE']=cls.database;os.environ['MONGO_DATABASE']=cls.database
         setup();catalog.cache_clear()
         cls.app=create_app({'TESTING':True})
@@ -34,7 +36,9 @@ class DatabaseIntegrationTests(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls.app.extensions['mongo'].drop_database(cls.database)
+        # Setup creates only battles in this isolated MongoDB test database.
+        # Drop the collection without requiring Atlas dropDatabase permission.
+        cls.logs.drop()
         cls.app.extensions['mongo'].close()
         with pymysql.connect(**sql_options(database=False)) as connection:
             with connection.cursor() as cursor:cursor.execute(f'DROP DATABASE `{cls.database}`')

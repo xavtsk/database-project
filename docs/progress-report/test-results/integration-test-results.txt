@@ -1,0 +1,23 @@
+test_action_revision_active_limit_and_resume (tests.test_app_integration.DatabaseIntegrationTests.test_action_revision_active_limit_and_resume) ... ok
+test_all_team_sizes_difficulties_and_move_eligibility (tests.test_app_integration.DatabaseIntegrationTests.test_all_team_sizes_difficulties_and_move_eligibility) ... ok
+test_analytics_known_fixtures_and_species_deduplication (tests.test_app_integration.DatabaseIntegrationTests.test_analytics_known_fixtures_and_species_deduplication) ... ok
+test_budget_rejection_and_owned_recommendations (tests.test_app_integration.DatabaseIntegrationTests.test_budget_rejection_and_owned_recommendations) ... ok
+test_pokedex_filters_detail_csrf_and_starter_uniqueness (tests.test_app_integration.DatabaseIntegrationTests.test_pokedex_filters_detail_csrf_and_starter_uniqueness) ... ok
+test_prediction_context_outcomes_forfeits_and_legacy_documents (tests.test_app_integration.DatabaseIntegrationTests.test_prediction_context_outcomes_forfeits_and_legacy_documents) ... ok
+test_rarity_boundaries_and_six_member_team (tests.test_app_integration.DatabaseIntegrationTests.test_rarity_boundaries_and_six_member_team) ... ok
+test_reward_retry_after_partial_delivery_and_snapshot_history (tests.test_app_integration.DatabaseIntegrationTests.test_reward_retry_after_partial_delivery_and_snapshot_history) ... ok
+test_team_crud_constraints_and_analysis (tests.test_app_integration.DatabaseIntegrationTests.test_team_crud_constraints_and_analysis) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 293.298s
+
+OK
+[AUDIT] validated 912 source files; C:\SIT\Y2S1\Database\Assignment 1\database-project\.local\import-audit.json
+[MySQL] 8.4.13
+[SQL] pokemon: 151 rows
+[SQL] types: 18 rows
+[SQL] moves: 353 rows
+[SQL] pokemon_types: 218 rows
+[SQL] pokemon_moves: 8103 rows
+[SQL] type_effectiveness: 324 rows
+[MongoDB] battle collection and indexes ready

@@ -25,9 +25,10 @@ class SavedAutoBattleTests(unittest.TestCase):
         from scripts.run_local import load_environment
         load_environment()
         self.client = mongo_client()
-        self.database = "pokedex_auto_test_" + uuid.uuid4().hex
+        self.database = "pokedex_auto_test_" + uuid.uuid4().hex[:12]
         self.addCleanup(self.client.close)
-        self.addCleanup(lambda: self.client.drop_database(self.database))
+        # Remove only this test's collection; Atlas may deny dropDatabase.
+        self.addCleanup(self.client[self.database].battles.drop)
         validator = json.loads((ROOT / "database/nosql/battle_validator.json").read_text())
         self.logs = self.client[self.database].create_collection("battles", validator=validator)
         self.connection = pymysql.connect(**sql_options(), cursorclass=pymysql.cursors.DictCursor)

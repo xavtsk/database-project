@@ -117,10 +117,13 @@ class MongoStrategyTests(unittest.TestCase):
         from scripts.run_local import load_environment
         load_environment()
         self.client = mongo_client()
-        self.name = "pokedex_query_test_" + uuid.uuid4().hex
+        # Atlas limits database names to 38 bytes; keep a unique test suffix.
+        self.name = "pokedex_query_test_" + uuid.uuid4().hex[:12]
         self.battles = self.client[self.name].battles
         self.addCleanup(self.client.close)
-        self.addCleanup(lambda: self.client.drop_database(self.name))
+        # This isolated database contains only our battles fixture collection.
+        # Dropping it removes the fixtures without requiring dropDatabase access.
+        self.addCleanup(self.battles.drop)
 
     def battle(self, status, moves, **changes):
         row = dict(_id=str(uuid.uuid4()), trainer_id=123, rules_version="prototype-2", difficulty="medium", status=status,
