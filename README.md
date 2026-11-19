@@ -128,6 +128,8 @@ On the original development computer, MongoDB was installed in ignored `.local/m
 
 ## Rules and limits
 
+For database explanations during assessment, expand **Database evidence** on a feature page or the **View SQL / View MongoDB** panels beside individual Team analysis and Battle analytics results. Panels show reference query excerpts, plain-English explanations and source filenames, remain collapsed by default, and do not execute queries. Omitted stages and JavaScript notation for PyMongo pipelines are labelled. In-page help also defines collection copies, team requirements, recommendation scores, rules versions, difficulty, analytics filter scope and prediction limits. Completed battles show the saved battle UUID, revision and delivered reward's owned-copy reference for matching MongoDB and SQL records.
+
 Read the [implemented battle rules](docs/database-design/battle-rules.md) and [relational ER diagram](docs/diagrams/relational-er.md).
 
 - Current cached values for the original 151; not historical Generation I mechanics.
