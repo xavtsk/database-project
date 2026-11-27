@@ -1,0 +1,20 @@
+test_filters_misses_repetition_samples_and_prediction_outcomes (tests.test_database_queries.MongoStrategyTests.test_filters_misses_repetition_samples_and_prediction_outcomes) ... ok
+test_repetition_boundary_and_invalid_filters (tests.test_database_queries.MongoStrategyTests.test_repetition_boundary_and_invalid_filters) ... ok
+test_additions_dual_types_immunity_and_duplicate_species (tests.test_database_queries.MySQLRecommendationTests.test_additions_dual_types_immunity_and_duplicate_species) ... ok
+test_empty_team_and_no_candidates (tests.test_database_queries.MySQLRecommendationTests.test_empty_team_and_no_candidates) ... ok
+test_full_team_recommendations_can_repair_one_legacy_legend_duplicate (tests.test_database_queries.MySQLRecommendationTests.test_full_team_recommendations_can_repair_one_legacy_legend_duplicate) ... ok
+test_full_team_replacements_and_budget (tests.test_database_queries.MySQLRecommendationTests.test_full_team_replacements_and_budget) ... ok
+test_legendary_candidates_never_duplicate_retained_species (tests.test_database_queries.MySQLRecommendationTests.test_legendary_candidates_never_duplicate_retained_species) ... ok
+test_overbudget_legacy_team_and_ownership (tests.test_database_queries.MySQLRecommendationTests.test_overbudget_legacy_team_and_ownership) ... ok
+test_invalid_matchups_fail_before_database_access (tests.test_historical_queries.HistoricalPreparationTests.test_invalid_matchups_fail_before_database_access) ... ok
+test_reviewed_mapping_and_duplicate_lineage (tests.test_historical_queries.HistoricalPreparationTests.test_reviewed_mapping_and_duplicate_lineage) ... ok
+test_unapproved_mapping_is_rejected (tests.test_historical_queries.HistoricalPreparationTests.test_unapproved_mapping_is_rejected) ... ok
+test_checks_foreign_keys_and_mapping_constraints (tests.test_historical_queries.HistoricalSQLTests.test_checks_foreign_keys_and_mapping_constraints) ... ok
+test_historical_api_uses_selected_profile_and_returns_live_query_results (tests.test_historical_queries.HistoricalSQLTests.test_historical_api_uses_selected_profile_and_returns_live_query_results) ... ok
+test_importer_rejects_missing_different_or_indirect_duplicate_lineage (tests.test_historical_queries.HistoricalSQLTests.test_importer_rejects_missing_different_or_indirect_duplicate_lineage) ... ok
+test_rerun_verifies_same_rows_and_role_query_excludes_duplicates_and_forms (tests.test_historical_queries.HistoricalSQLTests.test_rerun_verifies_same_rows_and_role_query_excludes_duplicates_and_forms) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 110.182s
+
+OK

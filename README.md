@@ -1,108 +1,113 @@
-# pokedex-battle-analytics
+# PokéDB — INF2003 Group 13
 
-## INF2003 Database Systems Group Project
+PokéDB is a Pokémon collection, team analysis and battle-history application built with Flask, MySQL and MongoDB. It supports the original 151 species, saved teams built from owned copies, simplified battles and database-computed analytics.
 
-A planned Pokédex & Battle Analytics Platform for a group of five students, using relational and NoSQL databases to explore Pokémon information, team building, battle simulation and battle analytics.
+## Start here
 
-## Planned Core Features
+Choose the setup route that matches the databases you will use:
 
-1. **Pokédex** — Browse, search and filter Pokémon, and view their stats, types and moves.
-2. **Team Builder** — Create and manage teams of up to six Pokémon.
-3. **Team Analysis** — Analyse team statistics, type strengths, weaknesses and coverage.
-4. **Battle Simulator** — Simulate Pokémon battles using stats, moves and type effectiveness, initially with simplified mechanics.
-5. **Battle Analytics** — Store battle history and turn-by-turn logs, and analyse win rates, Pokémon usage, moves used and battle duration.
-
-## Planned Database Technologies
-
-- **MySQL/MariaDB:** Structured data such as Pokémon, types, moves, trainers and teams.
-- **MongoDB:** Flexible battle logs and battle analytics data.
-
-The relational schema, ER diagram and MongoDB document schema have not been finalised. Database design and the application technology stack are still being finalised.
-
-## Repository Structure
-
-| Folder | Intended purpose |
+| Setup route | Instructions |
 | --- | --- |
-| `data/raw/` | Original source datasets. |
-| `data/processed/` | Cleaned and transformed datasets. |
-| `data/generated/` | Generated or synthetic datasets. |
-| `database/relational/` | Future relational database files. |
-| `database/nosql/` | Future NoSQL database files. |
-| `backend/pokedex/` | Planned Pokédex functionality. |
-| `backend/teams/` | Planned team management functionality. |
-| `backend/team_analysis/` | Planned team analysis functionality. |
-| `backend/battles/` | Planned battle simulation functionality. |
-| `backend/analytics/` | Planned battle analytics functionality. |
-| `frontend/` | Future user interface files. |
-| `scripts/` | Future data preparation and utility scripts. |
-| `tests/` | Future automated tests. |
-| `docs/database-design/` | Database design notes and decisions. |
-| `docs/diagrams/` | Project diagrams, including the future ER diagram. |
-| `docs/progress-report/` | Group progress reports. |
+| **Assessment using the team's existing cloud databases** | Follow the [cloud assessor guide](docs/submission/cloud-assessor-guide.md). Install Python and Google Cloud CLI, obtain access and credentials privately, start your SSH tunnel, then run the app. The databases and data are already initialised. |
+| **Independent installation with your own databases** | Follow the [user manual](docs/submission/user-manual.md). Install/configure MySQL and MongoDB, create an application account, then build the schema and import the supplied cached data. |
 
-The repository includes the initial folder structure, documentation and a raw-data downloader. No application features, database schemas or battle mechanics have been implemented.
+The cloud route runs the application on the assessor's computer. The team's personal computer does not need to stay on; the Google Cloud VM and Atlas cluster must remain available. It uses shared data, so use your own labelled demonstration trainer and teams.
 
-## Raw Data Collection
+Do not run database setup, imports, migrations or database-write tests against the shared assessment connection. Use independent databases and appropriate test credentials for those operations.
 
-The raw Pokémon data source is [PokéAPI v2](https://pokeapi.co/docs/v2/). Following the initial test with IDs 1–3, the approved download now covers Pokémon IDs **1–151**: 151 Pokémon responses, 151 species responses, 17 referenced types and 592 unique referenced moves. All 911 JSON files were validated, and a full cached rerun made no HTTP requests.
+Commands must be run from the project root, the folder containing this README, `requirements.txt`, `backend` and `scripts`. After completing either setup guide, start the application with:
 
-Complete API response bodies are cached under `data/raw/` without removing fields or reformatting JSON:
-
-- `pokemon/001.json` and `species/001.json`: Pokémon and species resources, using three-digit IDs.
-- `types/grass.json`: unique types referenced by the selected Pokémon.
-- `moves/tackle.json`: unique moves referenced by the selected Pokémon.
-
-The ID restriction selects Generation I Pokémon; their complete responses and move references are not filtered to Generation I game versions. The downloader does not recursively fetch other linked resources.
-
-From the repository root, set up Python 3 and run the small test:
-
-```sh
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-python scripts/data_import/fetch_pokeapi.py --start-id 1 --end-id 3
+```text
+python scripts/run_local.py
 ```
 
-Run the same command again to check caching. Existing valid files print `[CACHED]` and cause no HTTP request. Missing resources are requested sequentially with a 0.2-second delay and a 30-second timeout, then print `[DOWNLOADED]`. Files are saved through a temporary file so incomplete writes are not treated as cached JSON.
+Open [the application](http://127.0.0.1:5050) and [database health](http://127.0.0.1:5050/api/health). The health response should be:
 
-Failures print `[ERROR]`; other resources continue, and the script exits with status 1 if errors occurred. Rerunning retries missing resources. An unreadable or invalid existing cache file is reported and left unchanged without requesting it again; inspect or move that file before retrying.
-
-To download or resume the approved full initial scope:
-
-```sh
-python scripts/data_import/fetch_pokeapi.py --start-id 1 --end-id 151
+```json
+{"mongodb":"ready","sql":"ready"}
 ```
 
-Raw data is intentionally preserved before any transformation or normalisation. The processing step below extracts stats and types for all 151 Pokémon. Processing rules for other fields will be designed later. Battle data will eventually be generated by our own Battle Simulator and is separate from PokéAPI data.
+The cloud route requires the SSH tunnel to remain running in a separate terminal. Its guide uses the virtual environment's Python explicitly; use the same interpreter that installed your dependencies. `.env.example` contains placeholders only. Actual `.env`/`.env.cloud` files, passwords and SSH keys must be supplied or created privately and kept out of Git.
 
-Offline downloader checks use Python's standard test library:
+## Requirements
 
-```sh
-python -m unittest discover -s tests -p 'test_fetch_pokeapi.py' -v
+- Python 3.13 was used for project verification; the Python source supports 3.10 or later.
+- Runtime packages are listed in [requirements.txt](requirements.txt). No Node.js build step is required to run the application.
+- Independent databases require MySQL Server 8.0.19 or later, with 8.4 LTS recommended, and MongoDB 8.0 or later. MySQL Workbench and MongoDB Compass are optional clients.
+- Internet access is needed for the cloud connections and external Pokémon sprites/fonts. The data supplied in the repository can be processed without downloading it again.
+
+## Application features
+
+| Feature | Behaviour | Database work |
+| --- | --- | --- |
+| Pokédex | Browse species, search by name/ID, filter by type and inspect supported moves | Parameterised SQL search, joins and nested type membership query |
+| Collection and teams | Select one starter, manage owned copies, create/read/update/delete saved teams | Ownership foreign keys, transactions, row locks and cascades |
+| Team analysis | Totals, averages, weaknesses, selected-move coverage and owned-partner recommendations | SQL views, aggregates, CTEs, `NOT EXISTS` and `ROW_NUMBER()` ranking |
+| Battle arena | Manual or automatic battles, saved state, predictions, three difficulties and victory rewards | SQL catalogue/ownership and reward transactions; revision-checked MongoDB battle documents |
+| Battle analytics | History, move usage, damage per attempt, repetition, prediction outcomes and observed 1v1 results | MongoDB aggregation over snapshots and nested turn events |
+
+Trainer profiles are demonstration selections, not password-protected user accounts. Applications connected to the same databases can select the same profiles. The server binds to localhost for this project demonstration.
+
+Teams may contain up to six members within 30 points, with four distinct eligible moves per member. A draft may be empty; entering battle requires at least one member. Each owned copy can appear once per team. The same legendary species can appear only once per team across normal/shiny variants. Recommendations propose additions or replacements and do not edit the saved team automatically.
+
+New battles use `prototype-2` rules, including the 40% maximum-HP per-hit damage cap. Older battles retain their recorded rules. The opponent matches your starting team size. The project uses simplified single-hit attacks and omits status/secondary effects, abilities, items and critical hits. Read the [battle rules](docs/database-design/battle-rules.md), [collection/reward rules](docs/database-design/collection-rewards.md) and [Auto Battle behaviour](docs/database-design/auto-battle.md) for details.
+
+## Database design
+
+MySQL contains 15 application/catalogue/historical tables and three analysis views. Composite ownership foreign keys ensure saved team members belong to the team's trainer. MongoDB holds battle starting snapshots, changing state and turn events, with validation and indexes including one active battle per trainer.
+
+- [Application architecture](docs/diagrams/application-architecture.md)
+- [Relational ER relationships and constraints](docs/diagrams/relational-er.md)
+- [MongoDB document model](docs/diagrams/mongodb-model.md)
+- [Database evidence and metric definitions](docs/database-design/database-evidence.md)
+- [Normalisation decisions and trade-offs](docs/database-design/normalisation-reference.md)
+
+Expand **Database evidence**, **View SQL** or **View MongoDB** on the website to inspect explanatory excerpts and source filenames. In-page help defines recommendation scores, rules versions, difficulty, filter scope and prediction limits. The excerpts are reference text and do not execute queries.
+
+## Supplied data and attribution
+
+[PokéAPI v2](https://pokeapi.co/docs/v2/) supplies the cached catalogue data. Unmodified raw responses include 151 Pokémon, 151 species, 18 types and 592 referenced moves. The audited playable catalogue contains 151 Pokémon, 18 types, 353 supported damaging moves, 218 Pokémon/type links, 8,103 eligible Pokémon/move links and 324 type-effectiveness pairs. Project-specific move-pool additions are labelled `project_override` and marked with ★ in the application.
+
+The separately cached [Weedle's Cave Pokémon Challenge dataset](https://www.kaggle.com/datasets/terminus7/pokemon-challenge) contains 800 entries, 50,000 synthetic 1v1 results and 10,000 unlabelled matchups. Its external IDs, forms and rules differ from the simulator. Reviewed mappings and historical SQL tables preserve that source separately; it does not populate the website's simulator matchup results or determine recommendation ranking. See the [historical import design](docs/database-design/historical-import-proposal.md).
+
+Pokémon names and sprites belong to their respective owners. Sprites are loaded from the PokéAPI sprite repository. Prepared data and source manifests are included under `data/`; live trainer collections and simulator history reside in the configured databases and are not a database dump in this repository.
+
+## Verification
+
+Run offline checks from the project root. In PowerShell, explicitly disable opt-in database tests:
+
+```powershell
+$env:RUN_DB_TESTS = '0'
+$env:RUN_QUERY_TESTS = '0'
+python -m unittest discover -s tests -v
+python -m scripts.data_import.audit_game_data
 ```
 
-## Data Processing: Pokémon Stats and Types
+Database-dependent tests are skipped in this mode. Their skipped status is not a fresh live-database pass. If Node.js is available, the frontend checks require no npm packages:
 
-This script uses Python's standard library only; no virtual environment or additional packages are required. By default it reads the existing `data/raw/pokemon/001.json` through `151.json` locally and writes:
-
-- `data/processed/pokemon.csv`: `pokemon_id`, `name`, `hp`, `attack`, `defense`, `special_attack`, `special_defense`, `speed` (151 rows).
-- `data/processed/pokemon_types.csv`: `pokemon_id`, `type_name`, `slot` (218 rows, preserving both types for dual-type Pokémon).
-
-These CSV layouts extend the initial three-Pokémon experiment; they do not define the final database schema. Values come from the cached responses' current `stats` and `types` fields; no historical game-version filtering is performed. Stats are matched by name, and rows are ordered by Pokémon ID and type slot.
-
-From the repository root:
-
-```sh
-python3 scripts/data_import/process_pokemon.py
-python3 -m unittest discover -s tests -p 'test_process_pokemon.py' -v
+```text
+node --test tests/frontend_analysis.test.cjs tests/frontend_catalogue.test.cjs
 ```
 
-To repeat the small experiment for IDs 1–3, writing 3 Pokémon rows and 6 type relationships into `data/processed/sample/`:
+Earlier real-database test results and their reproduction instructions are retained in [the test evidence](docs/progress-report/test-results/README.md). Opt-in query fixtures roll back SQL writes and create disposable MongoDB collections. The full integration tests create/drop uniquely named test databases and need a dedicated SQL test account. Configure those credentials privately and use an isolated test environment; do not enable the flags on the shared assessment account.
 
-```sh
-python3 scripts/data_import/process_pokemon.py --sample
-```
+Optional browser checks use [requirements-dev.txt](requirements-dev.txt). Some create demonstration records, so inspect their instructions and use an agreed test environment before running them. They are not needed to start the application.
 
-All selected inputs are validated before either CSV is written. Missing or invalid input stops the run with an error. Successful reruns replace the two CSVs with identical contents instead of appending duplicate rows; keep manual edits elsewhere. Raw files are never modified, and no network requests are made.
+The [recorded database comparison](docs/progress-report/database-comparison-results.json) verifies equivalent delivered-reward facts and reports warm-read latency. Its deployments, network paths and data representations differ; it does not measure throughput, concurrent-user performance or isolated database-engine speed.
 
-The tests check source values, unique IDs, type relationships, both types, ordering, repeatable outputs, raw-file preservation and invalid inputs, including full coverage of IDs 1–151. Processing moves, species details or type-effectiveness resources, creating database schemas and implementing application features remain outside this step.
+## Repository contents
+
+| Folder | Contents |
+| --- | --- |
+| `backend/` | Flask routes, database connections, services and battle engine |
+| `frontend/` | Browser page, styles, scripts and local arena artwork |
+| `database/` | MySQL schema/views/queries and MongoDB validator |
+| `data/raw/`, `data/processed/` | Cached source data, provenance and prepared catalogue/mappings |
+| `scripts/` | Data audits/imports, setup, launcher and optional verification tools |
+| `tests/` | Offline, frontend and opt-in database tests |
+| `docs/submission/` | The two assessor installation/user guides |
+| `docs/database-design/`, `docs/diagrams/` | Design explanations and relationships |
+| `docs/progress-report/` | Dated verification records and recorded evidence |
+| `docs/development/` | Archived team preparation notes, separate from assessor setup |
+
+Development history and earlier workstation instructions are preserved in the [development archive](docs/development/README.md). Use the two setup guides at the top for the current assessment routes.

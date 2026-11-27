@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" preserveAspectRatio="none" shape-rendering="crispEdges">
+  <title>Pixel-art meadow battlefield</title>
+  <defs>
+    <pattern id="grass" width="32" height="24" patternUnits="userSpaceOnUse">
+      <path fill="#8fbd61" d="M3 7h2v2H3zm20 11h3v1h-3zM13 21h2v1h-2z"/>
+      <path fill="#b5d680" d="M11 4h3v1h-3zm16 7h2v1h-2zM5 18h3v1H5z"/>
+      <path fill="#79aa57" d="M17 12h1v2h1v-3h1v3h1v-2h1v3h-5z"/>
+    </pattern>
+    <g id="cloud" fill="#edf8e0">
+      <path d="M0 8h7V4h6V0h15v4h8v4h7v7H0z"/>
+      <path fill="#d7efdc" d="M0 13h43v3H0z"/>
+    </g>
+    <g id="tree">
+      <path fill="#456b4b" d="M13 26h5v16h-5z"/>
+      <path fill="#396c51" d="M8 0h15v4h5v5h4v17h-5v5H5v-5H0V9h4V4h4z"/>
+      <path fill="#4c8558" d="M8 2h14v4h5v6h3v10h-5v5H5v-5H2V12h4V6h2z"/>
+      <path fill="#6b9d61" d="M9 4h10v3h5v5h3v5H8v-3H5V9h4z"/>
+      <path fill="#85b16b" d="M10 6h8v3h5v4H8V9h2z"/>
+    </g>
+  </defs>
+  <path fill="#a4d5db" d="M0 0h320v240H0z"/>
+  <path fill="#b9e0db" d="M0 43h320v57H0z"/>
+  <use href="#cloud" x="23" y="18"/>
+  <use href="#cloud" x="139" y="31"/>
+  <use href="#cloud" x="264" y="12"/>
+  <path fill="#8bbb93" d="M0 91h13V83h14V75h15V68h25v8h13v8h19v9h22V82h15V72h13V63h24v9h14v8h14v9h22V79h16V68h20v-9h24v10h15v12h12v9h10v35H0z"/>
+  <path fill="#72a57b" d="M0 99h25v-7h23v-8h30v9h21v8h35v-9h24v-9h25v8h18v8h36v-7h25v-9h30v9h28v28H0z"/>
+  <use href="#tree" x="-12" y="71"/>
+  <use href="#tree" x="15" y="76"/>
+  <use href="#tree" x="43" y="73"/>
+  <use href="#tree" x="74" y="81"/>
+  <use href="#tree" x="110" y="80"/>
+  <use href="#tree" x="142" y="74"/>
+  <use href="#tree" x="178" y="81"/>
+  <use href="#tree" x="212" y="78"/>
+  <use href="#tree" x="245" y="72"/>
+  <use href="#tree" x="276" y="77"/>
+  <use href="#tree" x="306" y="70"/>
+  <path fill="#789e59" d="M0 106h320v134H0z"/>
+  <path fill="#bedb8a" d="M0 111h320v129H0z"/>
+  <path fill="#a5ca73" d="M0 123h320v117H0z"/>
+  <path fill="#aed17b" d="M39 127h83v-4h49v6h67v5h46v7h36v58h-47v9h-67v6H86v-7H25v-9H0v-57h39z"/>
+  <path fill="url(#grass)" d="M0 116h320v124H0z"/>
+  <path fill="#8bb55f" d="M0 223h18v4h25v-3h31v6h27v-4h38v5h39v-7h28v4h42v-6h25v5h29v-4h18v17H0z"/>
+  <path fill="#6e9c51" d="M0 232h25v3h24v-4h33v5h35v-3h41v4h24v-5h33v3h34v-5h29v5h42v5H0z"/>
+  <path fill="#dce7a1" d="M19 145h2v2h-2zm77 48h2v2h-2zm181-38h2v2h-2z"/>
+  <path fill="#d7b96b" d="M20 146h1v1h-1zm77 48h1v1h-1zm181-38h1v1h-1z"/>
+</svg>

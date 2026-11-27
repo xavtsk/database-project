@@ -1,0 +1,50 @@
+{
+  "measured_at_utc": "2026-10-22T18:27:33.767656+00:00",
+  "workload": "Retrieve the same delivered award identity, trainer, owned copy, species and shiny flag",
+  "candidate_awards": 37,
+  "matched_awards": 37,
+  "excluded_without_delivered_mongo_award": 0,
+  "samples_per_store": 7,
+  "equivalent_results": true,
+  "result_sha256": "783d5dbb774eb1d219f1b07544f89d98ab899e94e794c2c7ede7521c89c90242",
+  "timings": {
+    "mysql": {
+      "samples_seconds": [
+        0.189201,
+        0.188421,
+        0.180644,
+        0.182013,
+        0.19558,
+        0.188962,
+        0.183908
+      ],
+      "median_seconds": 0.188421,
+      "mean_seconds": 0.186961,
+      "min_seconds": 0.180644,
+      "max_seconds": 0.19558
+    },
+    "mongodb": {
+      "samples_seconds": [
+        0.033371,
+        0.038611,
+        0.036544,
+        0.038248,
+        0.035064,
+        0.033113,
+        0.029355
+      ],
+      "median_seconds": 0.035064,
+      "mean_seconds": 0.034901,
+      "min_seconds": 0.029355,
+      "max_seconds": 0.038611
+    }
+  },
+  "method": "Persistent connections; one excluded warm-up per store; alternating store order; driver fetch fully consumed; no requested result ordering; canonicalisation outside timing",
+  "scope": "Existing matching delivered awards only; no production writes; not a full data-consistency audit",
+  "limitations": [
+    "Different deployments/network paths; cannot isolate database-engine speed",
+    "Small fixed cohort, warm connections, sequential reads; no throughput, scaling or cold-start claim",
+    "MySQL joins current ownership; MongoDB reads embedded delivered-award snapshots",
+    "No end-to-end browser, battle-write or concurrency performance measured"
+  ]
+}

@@ -1,0 +1,2 @@
+# Optional browser verification only; not required to run the application.
+playwright>=1.50,<2

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 24" shape-rendering="crispEdges">
+  <title>Pixel-art grassy battle platform</title>
+  <path fill="#5e7546" d="M20 4h56v3h12v4h8v5h-8v4H76v3H20v-3H8v-4H0v-5h8V7h12z"/>
+  <path fill="#6d9650" d="M20 2h56v3h12v4h8v5h-8v4H76v3H20v-3H8v-4H0V9h8V5h12z"/>
+  <path fill="#c5d98b" d="M22 3h52v3h12v4h6v3h-8v4H74v2H22v-2H12v-4H4v-3h6V6h12z"/>
+  <path fill="#d9e7a3" d="M25 5h46v2h12v3h5v2H78v3H20v-3H8v-2h6V8h11z"/>
+  <path fill="#a4bf72" d="M28 15h40v2H28zM16 9h6v2h-6zm58 1h5v2h-5z"/>
+</svg>
