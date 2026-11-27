@@ -81,4 +81,4 @@ MySQL checks enforce positive source rows, distinct participants, participant wi
 
 On this local MySQL 26.7 server, a direct-insert probe did not reject a missing self-referenced row, despite the declared self FK. Import correctness therefore relies on the explicit pre-write lineage validation and complete stored-row verification on rerun, rather than assuming that self FK enforces the policy. Direct SQL edits bypass application validation; there is no historical write API. No global server settings or broader account privileges were required.
 
-[AGENTS.md section 17](../../AGENTS.md) required approval before the schema extension. The user approved the concrete three-table design, 150 mappings, unresolved-name treatment and duplicate exclusion policy before implementation. Future source/mapping changes still require inspection and review.
+The project's original collaboration guidelines required approval before the schema extension. The user approved the concrete three-table design, 150 mappings, unresolved-name treatment and duplicate exclusion policy before implementation. Future source/mapping changes still require inspection and review.

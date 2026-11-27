@@ -1,5 +1,7 @@
 # Excellent-band readiness audit
 
+Development archive: this dated preparation review is not the current assessor setup guide. Start with the [project README](../../README.md) for the current installation routes. Historical observations below are retained as a record of that review.
+
 Reviewed 23 October 2026 against `INF2003_project_description (2).pdf`, PDF
 pages 1–6, supplied earlier by the user. This is a criterion/evidence audit,
 not a predicted mark or a claim that the group has already earned ≥80.
@@ -68,7 +70,7 @@ as a fresh full end-to-end test.
 | Concurrency and correctness | SQL row locks and transactions, MongoDB revision replacement, unique reward identity and delivery repair | Implemented with tests. Explain the atomicity boundary; this app has no cross-database FK or distributed atomic commit. |
 | Rigorous SQL/NoSQL comparison | [Comparison results](database-comparison-results.json), method below and report outline | New equivalent-fact retrieval check completed; explain modelling/integrity/atomicity trade-offs as well as latency. Different hosting paths prevent engine-superiority conclusions. |
 | Working reproducible application | [User manual](../submission/user-manual.md), cached source files and scripts | Manual prepared. A teammate/reviewer must still follow it from a fresh directory without private `.local` helpers. Record the result and software versions. |
-| Excellent explanation and analysis | [Report outline](../submission/final-report-outline.md), [presentation plan](../submission/presentation-plan.md) | Prepared supporting material, not a completed assessed PDF/PPTX/video. Use the official report template and show actual results/limitations. |
+| Excellent explanation and analysis | [Report outline](../development/final-report-outline.md), [presentation plan](../development/presentation-plan.md) | Prepared supporting material, not a completed assessed PDF/PPTX/video. Use the official report template and show actual results/limitations. |
 
 ## 4. Reproducible SQL/NoSQL comparison
 

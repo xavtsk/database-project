@@ -343,7 +343,7 @@ and unfinished deliverables; a guide alone cannot guarantee a grade.
 7. Finish with measured results, limitations and justified improvements.
 
 This follows the brief's background → relational → NoSQL → optional performance
-order. The [five-person presentation plan](../submission/presentation-plan.md)
+order. The archived [five-person presentation plan](../development/presentation-plan.md)
 allocates time within ten minutes. Use the
-[report outline](../submission/final-report-outline.md) to turn the same
+[report outline](../development/final-report-outline.md) to turn the same
 feature evidence into methods, results, conclusions and implications.

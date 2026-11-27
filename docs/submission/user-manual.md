@@ -6,10 +6,9 @@ application and client tools, uses separately supplied credentials, and does
 not initialise or import into the shared databases. The instructions below
 cover an independent database installation.
 
-This manual is for an assessor or teammate running their own local copy. The
-shared cloud deployment is optional; see the separate
-[cloud guide](../database-design/google-cloud-mysql.md) if using authorised
-cloud access. The owner's ignored `.local/gcp` files are not part of a clone.
+This manual covers creating independent databases and running the application
+locally. For assessment using the supplied cloud databases, start with the
+cloud assessor setup guide linked above.
 
 ## 1. Install and configure
 
@@ -108,8 +107,9 @@ in your own `.env`. Changing `.env` or backend code requires an app restart.
    and forfeits do not contribute to that panel. Small-sample warnings are expected.
 
 The application uses selectable profiles for a local demonstration; it is not
-public multi-user authentication. Keep the local server on loopback. A teacher
-does not need to connect to a student's cloud VM to run the project.
+public multi-user authentication. Keep the local server on loopback. This
+independent installation uses your own databases and does not require access
+to the team's cloud VM.
 
 ## 4. Checks and troubleshooting
 
@@ -136,9 +136,10 @@ comparison is available:
 python -m scripts.benchmark_databases --samples 7
 ```
 
-It requires at least one shared delivered SQL/MongoDB award and never invents
-one. See the [readiness audit](../progress-report/rubric-readiness.md) for method
-and interpretation limits.
+It requires at least one delivered reward recorded in both SQL and MongoDB.
+The comparison measures read latency for matching reward facts; hosting,
+network conditions and data models affect the results. It does not measure
+throughput or isolate database-engine performance.
 
 | Symptom | Check |
 | --- | --- |
@@ -150,15 +151,3 @@ and interpretation limits.
 | Missing catalogue | Run setup with the intended database after checking `.env` |
 | HTML instead of API JSON | Restart the app after updating backend routes, then refresh |
 | Cloud port 3308 unavailable | Start your authorised SSH tunnel first; local-only installations do not need it |
-
-## 5. Before submitting the archive
-
-Include backend, frontend, scripts, tests, database DDL/queries, cached source
-and prepared data, requirements files, `.env.example`, README and this manual.
-Include references/source attribution. Exclude real `.env` files, `.local`, SSH
-keys, database credentials, database binary files, system libraries and virtual
-environments. The final report/PPTX/video are separate deliverables.
-
-This manual has been reviewed against the current setup code. A complete
-fresh-machine installation has not been performed as part of the rubric audit;
-record an independent teammate run before calling reproducibility verified.

@@ -1,0 +1,2 @@
+# Assessor source exports do not need collaboration-agent instructions.
+AGENTS.md export-ignore
