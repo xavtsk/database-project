@@ -50,7 +50,7 @@ GROUP BY t.id,t.name;
 
 WITH roster AS (...), candidates AS (...), ranked AS (...)
 SELECT * FROM ranked WHERE recommendation_rank <= 3;`},
-  battle:{database:'MySQL → MongoDB',operation:'SELECT / INSERT, insert_one, replace_one',data:'SQL saved team/catalogue/rewards; MongoDB battles',techniques:'SQL roster JOIN and transaction; embedded snapshot; revision-checked replacement',changes:'Yes, when a battle starts, a turn resolves or a reward is delivered',source:'backend/battles/service.py · backend/teams/service.py',explanation:'A battle copies the saved SQL team into a MongoDB snapshot. Each turn replaces only the matching active revision, preventing stale updates. Winning rewards use a separate SQL transaction; the two databases do not share a distributed transaction. MongoDB operations below use JavaScript notation for PyMongo calls.',query:`-- Read the owned SQL roster
+  battle:{database:'MySQL → MongoDB',operation:'SELECT / INSERT, insert_one, replace_one, update_one',data:'SQL saved team/catalogue/rewards; MongoDB battles',techniques:'SQL roster JOIN; trainer row lock; reward lookup and transaction; revision-checked snapshot',changes:'Yes, when a battle starts, a turn resolves or a reward is delivered',source:'backend/battles/service.py · backend/teams/service.py · database/relational/schema.sql',explanation:'A battle copies the saved SQL team into a MongoDB snapshot. Each turn replaces only the matching active revision. Reward delivery locks the trainer, then checks MySQL using the battle UUID: an existing award is reused; otherwise both SQL rows are inserted in one transaction. battle_rewards.battle_id is a primary key, preventing duplicate reward records for one battle. MongoDB is marked delivered after the SQL commit; a failed marker can be repaired by reopening the battle and reusing the SQL award. The stores do not share a distributed transaction. The first MongoDB excerpt uses JavaScript notation; the reward excerpt uses Python/PyMongo with bound SQL parameters. Ellipses omit other checks and reward selection.',query:`-- Read the owned SQL roster
 SELECT ... FROM teams t
 LEFT JOIN team_members tm ON tm.team_id=t.id
 WHERE t.id=%s AND t.trainer_id=%s;
@@ -59,9 +59,29 @@ WHERE t.id=%s AND t.trainer_id=%s;
 insertOne(battleSnapshot)
 replaceOne({_id, trainer_id, revision, status:'active'}, updatedBattle)
 
--- On a win, deliver one SQL reward transaction
-INSERT INTO owned_pokemon (...) VALUES (...);
-INSERT INTO battle_rewards (...) VALUES (...);`},
+# Winning reward: excerpt from deliver_reward()
+with transaction() as cursor:
+    cursor.execute("SELECT id FROM trainers WHERE id=%s FOR UPDATE",
+                   (battle["trainer_id"],))
+    ...  # Validate that the trainer exists.
+    cursor.execute("""SELECT r.owned_id,o.pokemon_id,o.is_shiny,p.name,p.rarity
+        FROM battle_rewards r JOIN owned_pokemon o ON o.id=r.owned_id
+        JOIN pokemon p ON p.id=o.pokemon_id WHERE r.battle_id=%s""",
+        (battle["_id"],))
+    existing = cursor.fetchone()
+    if existing:
+        owned_id = existing["owned_id"]  # Reuse the saved award.
+        ...  # Restore final_reward from the existing SQL record.
+    else:
+        ...  # Select an eligible reward; insert both rows in this transaction.
+        cursor.execute("INSERT INTO owned_pokemon (...) VALUES (...)", ...)
+        owned_id = cursor.lastrowid
+        cursor.execute("INSERT INTO battle_rewards (...) VALUES (...)", ...)
+
+# After SQL commits, save the delivery marker in MongoDB.
+final_reward.update(delivered=True, owned_id=owned_id)
+battles.update_one({"_id": battle["_id"], "trainer_id": battle["trainer_id"]},
+                   {"$set": {"reward": final_reward}})`},
   analytics:{database:'MongoDB',operation:'aggregate · read-only',data:'battles',techniques:'$match, $facet, $unwind, $group, $sort',changes:'No',source:'backend/analytics/service.py · analytics',explanation:'One aggregation uses facets to derive several summaries from this trainer’s completed battles. Each result section below has its own pipeline excerpt. Strategy and 1v1 sections apply additional rules/difficulty and non-forfeit filters.',query:`[
   {$match: {trainer_id, status: {$in: ['win','loss','draw']}}},
   {$facet: {
