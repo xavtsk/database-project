@@ -4,10 +4,10 @@ Implemented on 2026-10-20 at the user's request to make winning rewards feel lik
 
 ## Behaviour
 
-- A winning battle presents a Poké Ball case with an **Open reward case** button.
+- A newly won battle presents a Poké Ball case with an **Open reward case** button. Reviewing a saved win from analytics shows its saved reward immediately, without another opening.
 - Opening scrolls a strip of Pokémon cards beneath a central marker, slows to the saved reward, then reveals the Pokémon with its rarity colour and delivery status. The reel takes 4.6 seconds; **Skip animation** reveals immediately.
 - The server continues choosing and awarding exactly one Pokémon using the existing rarity odds and unique battle-reward record. The browser's decorative cards do not choose the reward or send a grant request. No schema or backend reward changes are involved.
-- Revealed battle IDs are remembered in browser local storage, with an in-memory fallback when storage is unavailable. Refreshing or reviewing the battle shows the existing reward. Another browser may replay the cosmetic opening, but it cannot grant another Pokémon.
+- Revealed battle IDs are remembered in browser local storage, with an in-memory fallback when storage is unavailable. History reviews also mark a saved winning reward as revealed before rendering it, so a fresh browser or blocked storage cannot offer another opening. Resuming an active battle preserves its first victory reveal.
 - Navigation cancels the visual cleanly. Reduced-motion preferences skip the reel. Missing decorative catalogue data uses mystery cards and still reveals the saved reward; text remains available when sprites cannot load.
 - Losses and draws retain their existing result screens. Reward delivery pending/retry text remains available.
 
@@ -44,3 +44,13 @@ python scripts/check_reward_case.py
 ```
 
 Install the existing `requirements-dev.txt` first, or use its Playwright Chromium installation and omit `BROWSER_CHANNEL`. `APP_URL` can select another running app address. The app itself has no new dependencies.
+
+## History review fix (2026-11-28)
+
+History reviews now show the saved winning reward immediately, even without a previous reveal in browser storage. Active battles still resume normally and retain their first victory reveal. The backend reward selection and delivery logic is unchanged.
+
+Verification for this fix:
+
+- All 16 frontend Node tests passed, including five new reward-review regressions covering empty/blocked storage, stale Open actions, active-battle resumption, separate battle/trainer rewards and pending delivery.
+- All 11 offline collection/reward Python tests passed.
+- The Edge fixture check passed for the full animation, skip, reload, double-click protection, navigation cancellation, reduced motion, catalogue failure, mobile layout, loss/draw results, history review, blocked storage and a resumed battle's first win. It ran against a template/static-file server on port 5051 with intercepted API responses; no cloud database queries or writes were performed. The browser test clears the catalogue cache before testing a new catalogue request or its failure.

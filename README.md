@@ -86,7 +86,7 @@ python -m scripts.data_import.audit_game_data
 Database-dependent tests are skipped in this mode. Their skipped status is not a fresh live-database pass. If Node.js is available, the frontend checks require no npm packages:
 
 ```text
-node --test tests/frontend_analysis.test.cjs tests/frontend_catalogue.test.cjs
+node --test tests/frontend_analysis.test.cjs tests/frontend_catalogue.test.cjs tests/frontend_rewards.test.cjs
 ```
 
 Earlier real-database test results and their reproduction instructions are retained in [the test evidence](docs/progress-report/test-results/README.md). Opt-in query fixtures roll back SQL writes and create disposable MongoDB collections. The full integration tests create/drop uniquely named test databases and need a dedicated SQL test account. Configure those credentials privately and use an isolated test environment; do not enable the flags on the shared assessment account.

@@ -122,7 +122,7 @@ python -m unittest discover -s tests -v
 If Node.js is available, run the dependency-free JavaScript behaviour checks:
 
 ```text
-node --test tests/frontend_analysis.test.cjs tests/frontend_catalogue.test.cjs
+node --test tests/frontend_analysis.test.cjs tests/frontend_catalogue.test.cjs tests/frontend_rewards.test.cjs
 ```
 
 Database integration tests are opt-in and some create/drop disposable databases.
