@@ -56,6 +56,10 @@ def check():
                 data = dict(teams=[])
             elif path == "collection":
                 data = dict(pokemon=[])
+            elif path.startswith("battles/"):
+                battle_id = path.split("/", 1)[1]
+                data = fixture(battle_id, status="active" if battle_id == "resume-fixture" else "win",
+                               delivered=battle_id != "history-pending-fixture")
             else:
                 data = dict(battles=[])
             route.fulfill(content_type="application/json", body=json.dumps(data))
@@ -98,6 +102,7 @@ def check():
         expect(page.locator(".reward-name")).to_have_text("mewtwo")
 
         show(fixture("double-click-fixture"))
+        page.evaluate("catalogueResponses.clear()")
         count = len(requests)
         page.get_by_role("button", name="Open reward case", exact=True).evaluate("button => {button.click(); button.click();}")
         ready()
@@ -121,6 +126,7 @@ def check():
 
         page.emulate_media(reduced_motion="no-preference")
         fail_catalogue = True
+        page.evaluate("catalogueResponses.clear()")
         show(fixture("offline-fixture"))
         page.get_by_role("button", name="Open reward case", exact=True).click(); ready()
         expect(page.locator(".case-card .ball")).to_have_count(33)
@@ -134,9 +140,37 @@ def check():
         for status in ("loss", "draw"):
             show(fixture(status=status))
             expect(page.locator(".reward-case")).to_have_count(0)
+
+        # Use the real history action, without relying on a previous opening in storage.
+        page.evaluate("localStorage.clear()")
+        page.reload(wait_until="domcontentloaded"); ready()
+        for battle_id in ("history-fresh-fixture", "history-pending-fixture"):
+            count = len(requests)
+            page.evaluate("id => perform('review-battle', id)", battle_id)
+            expect(page.locator(".case-revealed")).to_be_visible()
+            expect(page.locator(".case-opening")).to_be_hidden()
+            expect(page.get_by_role("button", name="Open reward case", exact=True)).to_be_hidden()
+            expect(page.locator(".reward-name")).to_have_text("mewtwo")
+            if battle_id == "history-pending-fixture":
+                expect(page.locator(".case-delivery")).to_contain_text("delivery pending")
+            assert all("/api/battles/" in url for url in requests[count:])
+
+        page.evaluate("() => perform('review-battle', 'resume-fixture')")
+        expect(page.locator(".reward-case")).to_have_count(0)
+        show(fixture("resume-fixture"))
+        expect(page.get_by_role("button", name="Open reward case", exact=True)).to_be_visible()
+
+        page.add_init_script("""for (const name of ['getItem', 'setItem']) {
+            Storage.prototype[name] = () => {throw new Error('Storage blocked for fixture');};
+        }""")
+        page.reload(wait_until="domcontentloaded"); ready()
+        page.evaluate("() => perform('review-battle', 'history-blocked-fixture')")
+        expect(page.locator(".case-revealed")).to_be_visible()
+        expect(page.get_by_role("button", name="Open reward case", exact=True)).to_be_hidden()
         assert not errors, errors
         print("PASS: full reel, saved winner, skip, reload, double clicks, navigation cancellation, reduced motion, "
-              "pending delivery, failed catalogue, mobile layout and no case for loss/draw. No backend writes.")
+              "pending delivery, failed catalogue, mobile layout, no case for loss/draw, fresh-history review, "
+              "blocked storage and resumed battle's first win. No backend writes.")
         browser.close()
 
 

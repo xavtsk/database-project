@@ -436,6 +436,11 @@ function rewardWasRevealed(battle) {
   try {return revealedRewards.has(key)||localStorage.getItem(key)==='revealed';}
   catch {return revealedRewards.has(key);}
 }
+function rememberRewardReveal(battle) {
+  const key=rewardKey(battle);
+  revealedRewards.add(key);
+  try {localStorage.setItem(key,'revealed');} catch { /* In-memory reveal still works. */ }
+}
 function cancelRewardSpin() {
   const spin=rewardSpin;rewardSpin=null;
   if(spin?.animation)spin.animation.cancel();
@@ -455,8 +460,7 @@ function finishRewardCase() {
   rewardSpin=null;
   spin.animation?.cancel();
   if(!spin.element.isConnected)return;
-  revealedRewards.add(rewardKey(spin.battle));
-  try {localStorage.setItem(rewardKey(spin.battle),'revealed');} catch { /* In-memory reveal still works. */ }
+  rememberRewardReveal(spin.battle);
   spin.element.querySelector('.case-sealed').hidden=true;
   spin.element.querySelector('.case-opening').hidden=true;
   const revealed=spin.element.querySelector('.case-revealed');revealed.hidden=false;
@@ -777,7 +781,13 @@ async function perform(action,value) {
     await submitBattleAction(chosen);
   }
   else if(action==='new-battle'){state.battle=null;await renderBattle();}
-  else if(action==='review-battle'){state.battle=await api(`/battles/${value}`);await navigate('battle');}
+  else if(action==='review-battle'){
+    state.battle=await api(`/battles/${value}`);
+    // History is a saved-result view, including in a fresh browser with no reveal record.
+    // Active battles still resume normally and can reveal their reward after a new win.
+    if(state.battle.status==='win'&&state.battle.reward)rememberRewardReveal(state.battle);
+    await navigate('battle');
+  }
 }
 document.addEventListener('click',event=>{
   const requested=event.target.closest('[data-action]');
